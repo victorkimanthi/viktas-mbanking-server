@@ -1,0 +1,26 @@
+<OTHER_DETAILS>
+    <CUSTOM_PARAMETERS>
+        <SMS>
+            <MT>
+                <PRODUCT_ID>122</PRODUCT_ID>
+                <SENDER>SkyWorld</SENDER>
+            </MT>
+        </SMS>
+    </CUSTOM_PARAMETERS>
+    <MSG_PARAMETERS>
+        <MT_MSG STATUS="ACTIVE">
+            <TABLE_NAME>COREBANKINGDB.dbo.[Sky World Demo SACCO$Sky SMS Messages]</TABLE_NAME>
+            <SEND_MSG>
+                <SERVICE_URLS>
+                    <SERVICE_URL>http://ujumbe01.skyworld.co.ke:8088/msg_gateway_interface/global/sendmsg</SERVICE_URL>
+                    <SERVICE_URL>http://ujumbe01.skyworld.co.ke:8088/msg_gateway_interface/global/sendmsg</SERVICE_URL>
+                    <SERVICE_URL>http://ujumbe03.skyworld.co.ke:8088/msg_gateway_interface/global/sendmsg</SERVICE_URL>
+                </SERVICE_URLS>
+            </SEND_MSG>
+        </MT_MSG>
+        <MO_MSG STATUS="ACTIVE" MODE='ONLINE'> <!-- MODE=ONLINE/OFFLINE/-->
+            <TABLE_NAME>COREBANKINGDB.dbo.[Sky World Demo SACCO$Sky SMS Messages]</TABLE_NAME>
+            <ONLINE_MSG>Dear Customer, Your SMS has been received. We shall respond back shortly.</ONLINE_MSG>
+        </MO_MSG>
+    </MSG_PARAMETERS>
+</OTHER_DETAILS>
