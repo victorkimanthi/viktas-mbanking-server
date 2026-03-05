@@ -51,7 +51,6 @@ public interface UtilitiesMenus {
             //intOptionMenu = intOptionMenu+1;
             //USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "BUY_AIRTIME", "2: Buy Airtime");
 
-
             for(APIUtils.ServiceProviderAccount serviceProviderAccount : llSPAAccounts){
                 //int intOptionMenu = llSPAAccounts.indexOf(serviceProviderAccount)+1;
                 intOptionMenu = intOptionMenu+1;

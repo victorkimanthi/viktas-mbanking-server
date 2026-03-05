@@ -52,6 +52,10 @@ public class MAPPAPIProcessor {
                     theMAPPResponse = theMAPPAPI.mobileMoneyWithdrawal(theMAPPRequest);
                     break;
                 }
+                case "MPESA_FLOAT_PURCHASE": {
+                    theMAPPResponse = theMAPPAPI.mobileMoneyWithdrawalFloatPurchase(theMAPPRequest);
+                    break;
+                }
                 case "WITHDRAW_MONEY_VIA_ATM": {
                     theMAPPResponse = theMAPPAPI.mobileMoneyWithdrawal(theMAPPRequest);
                     break;
@@ -213,6 +217,14 @@ public class MAPPAPIProcessor {
                 }
                 case "GET_HOME_PAGE_ADDONS": {
                     theMAPPResponse = theMAPPAPI.getHomePageAddons(theMAPPRequest);
+                    break;
+                }
+                case "VALIDATE_BUSINESS_SHORT_CODE": {
+                    theMAPPResponse = theMAPPAPI.validateBusinessShortCode(theMAPPRequest);
+                    break;
+                }
+                case "LIPA_NA": {
+                    theMAPPResponse = theMAPPAPI.lipaNa(theMAPPRequest);
                     break;
                 }
                 case "UNKNOWN": {

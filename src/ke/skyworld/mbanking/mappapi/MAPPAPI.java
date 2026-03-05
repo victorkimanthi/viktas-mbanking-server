@@ -51,8 +51,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseAction.CON;
+import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.ERROR;
+import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.SUCCESS;
+import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponsesDataType.TEXT;
 import static ke.skyworld.lib.mbanking.register.RegisterConstants.IdentityType.NATIONAL_ID;
-import static ke.skyworld.mbanking.ussdapi.APIUtils.fnSendSMS;
+import static ke.skyworld.mbanking.ussdapi.APIUtils.*;
+import static ke.skyworld.mbanking.ussdapi.USSDAPI.truncateString;
 
 public class MAPPAPI {
 
@@ -4211,7 +4215,7 @@ public class MAPPAPI {
                 String strTraceID = getTraceID(theMAPPRequest);
 
                 String strSessionID = String.valueOf(theMAPPRequest.getSessionID());
-                String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.USSD,theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
+                String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP,theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
 
                 Node ndRequestMSG = theMAPPRequest.getMSG();
 
@@ -6758,6 +6762,564 @@ public class MAPPAPI {
         System.out.println("Loan Types Gotten:");
         System.out.println(loan_types);
         return loan_types;
+    }
+
+    public MAPPResponse mobileMoneyWithdrawalFloatPurchase(MAPPRequest theMAPPRequest) {
+        MAPPResponse theMAPPResponse = null;
+        System.out.println("HERE");
+
+        try {
+            String strMobileNumber = String.valueOf(theMAPPRequest.getUsername());
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+            XPath configXPath = XPathFactory.newInstance().newXPath();
+
+            MAPPResponse mrOTPVerificationMappResponse = null;
+            ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
+
+            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            if (otp.isEnabled()) {
+                mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
+
+                String strAction = configXPath.evaluate("@ACTION", mrOTPVerificationMappResponse.getMSG()).trim();
+                String strStatus = configXPath.evaluate("@STATUS", mrOTPVerificationMappResponse.getMSG()).trim();
+
+                if (!strAction.equals("CON") || !strStatus.equals("SUCCESS")) {
+                    otpVerificationStatus = ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS.ERROR;
+                }
+            }
+
+            if (otpVerificationStatus == ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS) {
+
+                String strUsername = theMAPPRequest.getUsername();
+                String strPassword = theMAPPRequest.getPassword();
+//                strPassword = APIUtils.hashPIN(strPassword, strUsername);
+
+                long lnSessionID = theMAPPRequest.getSessionID();
+                String strAppID = String.valueOf(theMAPPRequest.getAppID());
+
+                String strTraceID = theMAPPRequest.getTraceID();
+
+                String strSessionID = String.valueOf(theMAPPRequest.getSessionID());
+                String strMemberName = getUserFullName(theMAPPRequest, strUsername);
+                String strMAPPSessionID = fnModifyMAPPSessionID(theMAPPRequest);
+                String strDateTime = MBankingDB.getDBDateTime().trim();
+                int intPESAPriority = 200;
+
+                Node ndRequestMSG = theMAPPRequest.getMSG();
+
+                DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+                Document doc = docBuilder.newDocument();
+
+                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+
+                MAPPConstants.ResponseAction enResponseAction = CON;
+
+                /* <MSG ACTION="CASH_WITHDRAWAL" PARAMETERS_VERSION="1.20082" PRODUCT_ID="5" SEQ="5" SERVER_ID="100201" SESSION_ID="43417315" SESSION_KEY="9880cfc1-a4ee-11f0-ba41-f2a2b77b3e48" TRACE_ID="9880f569-a4ee-11f0-ba41-f2a2b77b3e48" TYPE="MOBILE_BANKING">
+ [INFO]:  [2025-10-09 09:04:21.440]  <FROM_ACCOUNT_NO>1003957</FROM_ACCOUNT_NO>
+ [INFO]:  [2025-10-09 09:04:21.440]  <AGENT_NUMBER>093019</AGENT_NUMBER>
+ [INFO]:  [2025-10-09 09:04:21.440]  <AGENT_NAME>test</AGENT_NAME>
+ [INFO]:  [2025-10-09 09:04:21.440]  <STORE_NUMBER>1526</STORE_NUMBER>
+ [INFO]:  [2025-10-09 09:04:21.440]  <AMOUNT>10</AMOUNT>
+ [INFO]:  [2025-10-09 09:04:21.440]  </MSG>
+*/
+
+                String strAmount = configXPath.evaluate("AMOUNT", ndRequestMSG).trim();
+
+                String strAccountFrom = configXPath.evaluate("FROM_ACCOUNT_NO", ndRequestMSG).trim();
+                String strAgentNumber = configXPath.evaluate("AGENT_NUMBER", ndRequestMSG).trim();
+                String strAgentName = configXPath.evaluate("AGENT_NAME", ndRequestMSG).trim();
+                String strStoreNumber = configXPath.evaluate("STORE_NUMBER", ndRequestMSG).trim();
+
+                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                String strTitle = "";
+                String strResponseText = "";
+                String strCharge = "NO";
+
+           /*     strRecipientMobileNumber = APIUtils.sanitizePhoneNumber(strRecipientMobileNumber);
+
+                if (strRecipientMobileNumber.equals("INVALID_MOBILE_NUMBER")) {
+                    return null;
+                }*/
+
+                double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
+                double dblWithdrawalMax = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
+
+
+                if (!strAmount.matches("^[1-9][0-9]*$")) {
+                    strTitle = "ERROR: Float Purchase";
+                    strResponseText = "Please enter a valid amount for Float Purchase";
+                    enResponseAction = CON;
+                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                } else if (Double.parseDouble(strAmount) < dblWithdrawalMin) {
+                    strTitle = "ERROR: Float Purchase";
+                    strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMin), "#,###.##");
+                    enResponseAction = CON;
+                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                } else if (Double.parseDouble(strAmount) > dblWithdrawalMax) {
+                    strTitle = "ERROR: Float Purchase";
+                    strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMax), "#,###.##");
+                    enResponseAction = CON;
+                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                } else {
+
+                    //TODO: Confirm if a new Transaction Type should be created in CBD
+                    String strTransaction = "Float Purchase Request";
+                    String strDate = MBankingDB.getDBDateTime().trim();
+
+                    PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_FLOAT_PURCHASE);
+
+                    long getProductID = Long.parseLong(pesaParam.getProductId());
+                    String strCategory = "FLOAT_PURCHASE";
+                    String strAPICategory = "FLOAT_PURCHASE";
+
+                    String strSenderIdentifier = pesaParam.getSenderIdentifier();
+                    String strSenderAccount = pesaParam.getSenderAccount();
+                    String strSenderName = pesaParam.getSenderName();
+
+                    PESA pesa = new PESA();
+
+                    pesa.setOriginatorID(strMAPPSessionID);
+                    pesa.setProductID(getProductID);
+                    pesa.setPESAType(PESAConstants.PESAType.PESA_OUT);
+                    pesa.setCategory(strCategory);
+                    pesa.setPESAStatusCode(10);
+                    pesa.setPESAStatusName("QUEUED");
+                    pesa.setPESAStatusDescription("New PESA");
+                    pesa.setPESAStatusDate(strDateTime);
+
+                    pesa.setInitiatorType("MSISDN");
+                    pesa.setInitiatorIdentifier(strMobileNumber);
+                    pesa.setInitiatorAccount(strMobileNumber);
+                    pesa.setInitiatorName(strMemberName);
+                    pesa.setInitiatorReference(strTraceID);
+                    pesa.setInitiatorApplication("USSD");
+                    pesa.setInitiatorOtherDetails("<DATA/>");
+
+                    pesa.setSourceType("ACCOUNT_NO");
+                    pesa.setSourceIdentifier(strAccountFrom);
+                    pesa.setSourceAccount(strAccountFrom);
+                    pesa.setSourceName(strMemberName);
+                    pesa.setSourceApplication("CBS");
+                    pesa.setSourceReference(strMAPPSessionID);
+                    pesa.setSourceOtherDetails("<DATA/>");
+
+                    pesa.setSenderType("SHORT_CODE");
+                    pesa.setSenderIdentifier(strSenderIdentifier);
+                    pesa.setSenderAccount(strSenderAccount);
+                    pesa.setSenderName(strSenderName);
+                    pesa.setSenderOtherDetails("<DATA/>");
+
+                    pesa.setReceiverType("TILL_NUMBER");
+                    pesa.setReceiverIdentifier(strAgentNumber);
+                    pesa.setReceiverAccount(strAgentNumber);
+                    pesa.setReceiverName(strAgentName);
+                    pesa.setReceiverOtherDetails("<DATA/>");
+
+                    pesa.setBeneficiaryType("TILL_NUMBER");
+                    pesa.setBeneficiaryIdentifier(strStoreNumber);
+                    pesa.setBeneficiaryAccount(strStoreNumber);
+                    pesa.setBeneficiaryName(strAgentName);
+                    pesa.setBeneficiaryOtherDetails("<DATA/>");
+
+                    String strTransactionDescription = "MPESA Float Purchase to "+strAgentName+ " Agent No. "+strAgentNumber+" - Store No. "+strStoreNumber;
+                    pesa.setTransactionRemark(strTransactionDescription);
+                    pesa.setTransactionCurrency("KES");
+                    pesa.setTransactionAmount(Double.parseDouble(strAmount));
+                    pesa.setBatchReference(strMAPPSessionID);
+                    pesa.setCorrelationReference(strTraceID);
+                    pesa.setCorrelationApplication("USSD");
+                    pesa.setTransactionCurrency("KES");
+                    pesa.setPESAType(PESAConstants.PESAType.PESA_OUT);
+                    pesa.setPESAAction(PESAConstants.PESAAction.B2B);
+                    pesa.setCommand("BusinessDeposit");
+                    pesa.setSensitivity(PESAConstants.Sensitivity.NORMAL);
+
+                    pesa.setCategory(strCategory);
+                    pesa.setPriority(intPESAPriority);
+                    pesa.setSendCount(0);
+                    pesa.setSourceApplication("CBS");
+                    pesa.setSourceReference(strMAPPSessionID);
+                    pesa.setPESAXMLData("<OTHER_DETAILS/>");
+
+                    pesa.setSchedulePesa(PESAConstants.Condition.NO);
+                    pesa.setPesaDateScheduled(strDateTime);
+                    pesa.setPesaDateCreated(strDateTime);
+                    pesa.setLocalDateCreated(strDateTime);
+
+                    HashMap<String,String> hmRVal = CBSAPI.mobileMoneyWithdrawal(strTraceID, "MSISDN", strUsername, strPassword,"APP_ID", strAppID, strMAPPSessionID,
+                            pesa.getSenderType(), pesa.getSenderIdentifier(), pesa.getSenderAccount(), pesa.getSenderName(), pesa.getSenderOtherDetails(),
+                            pesa.getReceiverType(), pesa.getReceiverIdentifier(), pesa.getReceiverAccount(), pesa.getReceiverName(), pesa.getReceiverOtherDetails(),
+                            pesa.getBeneficiaryType(),pesa.getBeneficiaryIdentifier(), pesa.getBeneficiaryAccount(),pesa.getBeneficiaryName(), pesa.getBeneficiaryOtherDetails(),
+                            strAccountFrom, strAmount, strAPICategory, strTransactionDescription, strTraceID, "MBANKING_SERVER", "MAPP", strDate);
+
+                    String strTransactionStatus = hmRVal.get("transaction_status");
+                    String strTransactionStatusDescription = hmRVal.get("transaction_status_description");
+                    String strTransactionDateTime = hmRVal.get("transaction_date_time");
+
+                    System.out.println("Withdrawal Request Result:" + strTransactionStatus);
+
+                    switch (strTransactionStatus) {
+                        case "SUCCESS": {
+                            String strMSG = "";
+                            String strFormattedDateTime = Utils.formatDate(strDate, "yyyy-mm-dd HH:mm:ss","dd-MMM-yyyy HH:mm:ss");
+
+                            if (PESAProcessor.sendPESA(pesa) > 0) {
+                                strAmount = Utils.formatAmount(strAmount);
+                                strMSG = "Dear member, your M-PESA Withdrawal request of KES " + strAmount + " to " + pesa.getBeneficiaryIdentifier() + " on " + strFormattedDateTime + " has been sent successfully.\nRef: " + strMAPPSessionID;
+                                strCharge = "YES";
+                                strTitle = "Request for Withdrawal";
+                                strResponseText = "Your request to withdraw <b>KES " + strAmount + "</b> has been received successfully.<br/>Kindly wait shortly as it is being processed";
+
+                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseAction = CON;
+                            } else {
+
+                                HashMap<String,String> hmRValResult = CBSAPI.mobileMoneyResult(pesa.getOriginatorID(), strMAPPSessionID, PESAConstants.PESAResult.FAILED.getValue(),"Transaction FAILED to be queued on the database",
+                                        pesa.getBeneficiaryType(),pesa.getBeneficiaryIdentifier(),pesa.getBeneficiaryName(), pesa.getBeneficiaryOtherDetails(),
+                                        "", strDate);
+
+                                String strResultTransactionStatus = hmRValResult.get("transaction_status");
+                                String strResultTransactionStatusDescription = hmRValResult.get("transaction_status_description");
+                                String strResultTransactionStatusDateTime = hmRValResult.get("transaction_status_date_time");
+                                strAmount = Utils.formatAmount(strAmount);
+
+                                if(strResultTransactionStatus.equalsIgnoreCase("SUCCESS")){
+//                                    strMSG = "Dear member, your M-PESA Withdrawal request of KES " + strAmount + " to " + strRecipientMobileNumber + " on " + strFormattedDateTime + " has been REVERSED. Dial *882# to check your balance.\nRef: " + strTransactionID;
+                                }else{
+//                                    strMSG = "Dear member, your M-PESA Withdrawal request of KES " + strAmount + " to " + strRecipientMobileNumber + " on " + strFormattedDateTime + " REVERSAL FAILED. Please contact the SACCO for assistance.\nRef: " + strTransactionID;
+                                }
+
+                                enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                                enResponseAction = CON;
+                            }
+                            break;
+                        }
+                        case "INCORRECT_PIN": {
+                            strTitle = "ERROR: Incorrect PIN";
+                            strResponseText = "You have entered an incorrect user PIN, please try again";
+
+                            enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                            enResponseAction = CON;
+                            break;
+                        }
+                        case "INVALID_ACCOUNT": {
+                            strTitle = "ERROR: Invalid Account";
+                            strResponseText = "You have selected an invalid account number, please try again";
+
+                            enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                            enResponseAction = CON;
+                            break;
+                        }
+                        case "INSUFFICIENT_BAL": {
+                            strTitle = "ERROR: Insufficient Balance";
+                            strResponseText = "You have insufficient balance to complete this request, please try again";
+
+                            enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                            enResponseAction = CON;
+                            break;
+                        }
+                        case "ACCOUNT_NOT_ACTIVE": {
+                            strTitle = "ERROR: Account Not Active";
+                            strResponseText = "Your account is inactive at the moment, please contact us or visit your nearest branch to get assistance";
+
+                            enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            break;
+                        }
+                        case "TRANSACTION_EXISTS": {
+                            strTitle = "ERROR: Withdrawal Failed";
+                            strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
+
+                            enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            break;
+                        }
+                        case "BLOCKED": {
+                            strTitle = "ERROR: Account Blocked";
+                            strResponseText = "Your account is blocked at the moment, please contact us or visit your nearest branch to get assistance";
+
+                            enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            break;
+                        }
+                        default: {
+                            System.err.println("DEFAULT ON SWITCH -> " + this.getClass().getSimpleName() + "." + new Object() {
+                            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + strTransactionStatus);
+                            strTitle = "ERROR: Withdrawal Failed";
+                            strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
+                        }
+                    }
+
+                    /*strTitle = "ERROR: Currently Unavailable";
+                    strResponseText = "This service is currently unavailable, please try again later.";
+
+                    enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                    enResponseAction = MAPPConstants.ResponseAction.END;*/
+                }
+
+                Element elData = doc.createElement("DATA");
+                elData.setTextContent(strResponseText);
+
+                generateResponseMSGNode(doc, elData, theMAPPRequest, enResponseAction, enResponseStatus, strCharge, strTitle, enDataType);
+
+                //Response
+                Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+                theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+            } else {
+                theMAPPResponse = mrOTPVerificationMappResponse;
+            }
+
+        } catch (Exception e) {
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return theMAPPResponse;
+    }
+
+    public MAPPResponse validateBusinessShortCode(MAPPRequest theMAPPRequest) {
+        MAPPResponse theMAPPResponse = null;
+        HashMap<Object, Object> hmAPIRVal = null;
+
+        /*
+        *<MSG ACTION="VALIDATE_BUSINESS_SHORT_CODE" PARAMETERS_VERSION="1.00052" PRODUCT_ID="2" SEQ="8" SERVER_ID="100201" SESSION_ID="38088614" SESSION_KEY="27df2b33-5364-11f0-816d-f2a2b77b3e48" TRACE_ID="27df465c-5364-11f0-816d-f2a2b77b3e48" TYPE="MOBILE_BANKING">
+            <BUSINESS_SHORT_CODE>2100014</BUSINESS_SHORT_CODE>
+            <IDENTIFIER TYPE="SHORTCODE">2100014</IDENTIFIER>
+        </MSG>
+        *
+         */
+
+        try {
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+            XPath configXPath = XPathFactory.newInstance().newXPath();
+
+            String strUsername = theMAPPRequest.getUsername();
+            String strAppID = String.valueOf(theMAPPRequest.getAppID());
+            String strTraceID = getTraceID(theMAPPRequest);
+
+            Node ndRequestMSG = theMAPPRequest.getMSG();
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            Document doc = docBuilder.newDocument();
+
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
+            MAPPConstants.ResponseAction enResponseAction = CON;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
+
+            String strTitle = "Business Short Code";
+            String strResponseText = "";
+            String strCharge = "NO";
+
+            Element elData = doc.createElement("DATA");
+
+            String strBusinessAccount = configXPath.evaluate("BUSINESS_SHORT_CODE", ndRequestMSG).trim();
+            hmAPIRVal = CBSAPI.verifyBusinessShortCode(strTraceID, "MSISDN", strUsername,"APP_ID", strAppID, "MSISDN", strUsername, strBusinessAccount);
+
+            String requestStatus = String.valueOf(hmAPIRVal.get("request_status"));
+
+            if(requestStatus.equals("SUCCESS")){
+                elData.setTextContent(String.valueOf(hmAPIRVal.get("business_name")));
+            }else {
+                enResponseStatus = ERROR;
+                elData.setTextContent("Invalid business account.");
+            }
+
+            generateResponseMSGNode(doc, elData, theMAPPRequest, CON, enResponseStatus, strCharge, strTitle, enDataType);
+
+            // Response
+            Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+
+        } catch (Exception e) {
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+            e.printStackTrace();
+        }
+        return theMAPPResponse;
+    }
+
+    public MAPPResponse lipaNa(MAPPRequest theMAPPRequest) {
+        MAPPResponse theMAPPResponse = null;
+
+        try {
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+            XPath configXPath = XPathFactory.newInstance().newXPath();
+
+            String strUsername = theMAPPRequest.getUsername();
+            String strPassword = theMAPPRequest.getPassword();
+            String strAppID = String.valueOf(theMAPPRequest.getAppID());
+
+            long lnSessionID = theMAPPRequest.getSessionID();
+
+            String strTraceID = getTraceID(theMAPPRequest);
+
+            String strSessionID = String.valueOf(theMAPPRequest.getSessionID());
+            // String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP, theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
+
+            Node ndRequestMSG = theMAPPRequest.getMSG();
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            Document doc = docBuilder.newDocument();
+            PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_C2B);
+            String strSender = pesaParam.getSenderIdentifier();
+
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
+            MAPPConstants.ResponseAction enResponseAction = CON;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
+
+            String strTitle = "Lipa Na Vikash";
+            String strResponseText = "";
+            String strCharge = "NO";
+
+            Element elData = doc.createElement("DATA");
+
+            /*<?xml version='1.0'?>
+            <MESSAGES DATE_TIME="2025-06-27 18:06:44" VERSION="1.06">
+                <LOGIN APP_ID="6a1e6980-535c-11f0-b823-a73607613bcd" PASSWORD="1212" USERNAME="254790342037" />
+                <MSG ACTION="LIPA_NA" PARAMETERS_VERSION="1.00052" PRODUCT_ID="2"
+                    SESSION_ID="38090783" SESSION_KEY="3fffc9f8-5368-11f0-816d-f2a2b77b3e48" TYPE="MOBILE_BANKING">
+                    <ACCOUNT_NO>68260200481901</ACCOUNT_NO>
+                    <SHOP_NUMBER>2000011</SHOP_NUMBER>
+                    <SHOP_NAME>Speedtech Connections</SHOP_NAME>
+                    <AMOUNT>100</AMOUNT>
+                </MSG>
+            </MESSAGES>
+             */
+            String strBusinessShortCode = configXPath.evaluate("BUSINESS_SHORT_CODE", ndRequestMSG).trim();
+            String strAmount = configXPath.evaluate("AMOUNT", ndRequestMSG).trim();
+            String strPaymentOption = configXPath.evaluate("PAYMENT_OPTION", ndRequestMSG).trim();
+
+
+            String strDepositMinimum = getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.DEPOSIT).getMinimum();
+            String strDepositMaximum = getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.DEPOSIT).getMinimum();
+
+            double dblDepositMinimum = Double.parseDouble(strDepositMinimum);
+            double dblDepositMaximum = Double.parseDouble(strDepositMaximum);
+
+
+            double dblAmountEntered = Double.parseDouble(strAmount);
+
+            if (dblAmountEntered < dblDepositMinimum || dblAmountEntered > dblDepositMaximum) {
+                if (dblAmountEntered < dblDepositMinimum) {
+                    strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(strDepositMinimum, "#,###.##");
+                    enResponseStatus = ERROR;
+                }
+
+                if (dblAmountEntered > dblDepositMaximum) {
+                    strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(strDepositMaximum, "#,###.##");
+                    enResponseStatus = ERROR;
+                }
+            } else if (strPaymentOption.equals("SAVINGS")) {
+                String strSourceAccount = configXPath.evaluate("ACCOUNT_NO", ndRequestMSG).trim();
+                String strDestinationAccount = strBusinessShortCode;
+
+                String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP,theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
+
+                String strTransactionReference = strTransactionID;
+
+                String strTransactionDescription = "Internal Funds Transfer. Source A/C: "+strSourceAccount+" - Destination A/C: "+strDestinationAccount;
+
+                String strAction = "IFT_ACCOUNT_TO_ACCOUNT";
+
+                HashMap<String,String> hmRVal = CBSAPI.internalFundsTransfer(strTraceID, "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
+                        strTransactionReference, strSourceAccount, strDestinationAccount, strAmount, strTransactionID,
+                        "MBANKING_SERVER", "MAPP", strTransactionDescription, MBankingDB.getDBDateTime(), strAction);
+                String strRequestStatus = hmRVal.get("transaction_status");
+                String strRequestStatusDescription = hmRVal.get("transaction_status_description");
+
+                String strFundsTransferStatus = strRequestStatus;
+
+                strCharge = "NO";
+
+                switch (strFundsTransferStatus) {
+                    case "SUCCESS": {
+                        strTitle= "Transaction Accepted";
+                        strResponseText = "Your funds transfer request has been accepted successfully. Kindly wait as it is being processed";
+                        strCharge = "YES";
+                        enResponseAction = CON;
+                        enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                        break;
+                    }
+                    case "ERROR": {
+                        strTitle= "Transaction Error";
+                        strResponseText = "An error occurred while making your request for funds transfer. Please try again.";
+                        enResponseAction = CON;
+                        enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                        break;
+                    }
+                    case "INSUFFICIENT_BAL": {
+                        strTitle= "Insufficient Balance";
+                        strResponseText = "Error, you do not have sufficient balance in your account to complete this request";
+                        enResponseAction = CON;
+                        enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                        break;
+                    }
+                    case "ACC_NOT_FOUND": {
+                        strTitle= "Account Not Found";
+                        strResponseText = "Error, your account could not be found, please try again";
+                        enResponseAction = MAPPConstants.ResponseAction.END;
+                        enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                        break;
+                    }
+                    default: {
+                        enResponseAction = MAPPConstants.ResponseAction.END;
+                        enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                        strTitle= "ERROR: Funds Transfer";
+                        strResponseText = "An error occurred. Please try again after a few minutes.";
+                    }
+                }
+            } else {
+                strResponseText = "You will be prompted by M-PESA for payment\nPaybill no: " + strSender + "\n" + "A/C: " + strBusinessShortCode + "\n" + "Amount: KES " + strAmount + "\n";
+                String strOriginatorID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP, lnSessionID, theMAPPRequest.getSequence());
+
+                Thread worker = new Thread(() -> {
+                    PESAAPI thePESAAPI = new PESAAPI();
+                    thePESAAPI.pesa_C2B_BUY_GOODS_Request(
+                            strOriginatorID,
+                            theMAPPRequest.getTraceID(),
+                            String.valueOf(theMAPPRequest.getUsername()),
+                            String.valueOf(theMAPPRequest.getUsername()),
+                            strBusinessShortCode,
+                            "KES",
+                            dblAmountEntered,
+                            "BUY_GOODS",
+                            strTraceID,
+                            "USSD",
+                            "MBANKING_SERVER");
+
+                });
+                worker.start();
+            }
+
+            elData.setTextContent(strResponseText);
+
+            generateResponseMSGNode(doc, elData, theMAPPRequest, CON, enResponseStatus, strCharge, strTitle, enDataType);
+
+            // Response
+            Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+
+        } catch (Exception e) {
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+
+            e.printStackTrace();
+        }
+
+        return theMAPPResponse;
     }
 
     public String getTraceID(MAPPRequest theMAPPRequest){

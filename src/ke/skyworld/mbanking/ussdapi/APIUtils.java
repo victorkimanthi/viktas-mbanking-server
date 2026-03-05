@@ -4,7 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ke.skyworld.lib.mbanking.core.MBankingConstants;
+import ke.skyworld.lib.mbanking.core.MBankingUtils;
 import ke.skyworld.lib.mbanking.core.MBankingXMLFactory;
+import ke.skyworld.lib.mbanking.mapp.MAPPRequest;
 import ke.skyworld.lib.mbanking.msg.MSGConstants;
 import ke.skyworld.lib.mbanking.msg.MSGProcessor;
 import ke.skyworld.lib.mbanking.pesa.PESALocalParameters;
@@ -460,6 +462,10 @@ public class APIUtils {
             System.err.println(APIUtils.class.getSimpleName()+"."+new Object() {}.getClass().getEnclosingMethod().getName()+"() ERROR : " + e.getMessage());
         }
         return rVal;
+    }
+
+    public static String fnModifyMAPPSessionID(MAPPRequest theMAPPRequest) {
+        return MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP,theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
     }
 
     public static int fnSendSMS(String theReceiver, String theMessage, String theCharge, MSGConstants.MSGMode theMode, int thePriority, String theCategory, String theRequestApplication, String theSourceApplication, String theSessionID, String theCorrelationID){

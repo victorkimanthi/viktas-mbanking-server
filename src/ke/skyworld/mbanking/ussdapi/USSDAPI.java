@@ -1313,12 +1313,24 @@ public class USSDAPI {
 			String strOption = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.WITHDRAWAL_OPTION.name());
 			String strToOption = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.WITHDRAWAL_TO_OPTION.name());
 
-			APIUtils.WithdrawalChannel withdrawalChannel = APIUtils.getWithdrawalChannel(strOption);
+			System.out.println("strOption:"+strOption);
+			System.out.println("strToOption:"+strToOption);
+
+//			APIUtils.WithdrawalChannel withdrawalChannel = APIUtils.getWithdrawalChannel(strOption);
+			APIUtils.WithdrawalChannel withdrawalChannel = APIUtils.getWithdrawalChannel("M-PESA");
 			if(withdrawalChannel != null) {
+				System.out.println("strToOption 1");
+
 				if (withdrawalChannel.hasWithdrawalToOtherNumberEnabled()) {
+					System.out.println("strToOption 2:");
+
 					if(strToOption != null) {
+						System.out.println("strToOption 3:");
+
 						if(strToOption.equalsIgnoreCase("OTHER_NUMBER")){
+							System.out.println("strToOption 4:");
 							strMobileNumberTo = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.WITHDRAWAL_TO.name());
+							System.out.println("OTHER_NUMBER 1");
 						}
 					}
 				}
@@ -1351,12 +1363,16 @@ public class USSDAPI {
 			String strBeneficiaryName = strSourceAccountName;
 
 			if (strToOption != null) {
+				System.out.println("here 1");
 				if (strToOption.equalsIgnoreCase("OTHER_NUMBER")) {
+					System.out.println("here 2");
 					strSourceName = strMobileNumberTo;
 					strReceiverName = strMobileNumberTo;
 					strBeneficiaryName = strMobileNumberTo;
 				}
 			}
+
+			System.out.println("mobile no to:"+ strMobileNumberTo);
 
 			PESA pesa = new PESA();
 
@@ -1438,6 +1454,8 @@ public class USSDAPI {
 			String strTransactionStatus = hmRVal.get("transaction_status");
 			String strTransactionStatusDescription = hmRVal.get("transaction_status_description");
 			String strTransactionDateTime = hmRVal.get("transaction_date_time");
+
+//			System.out.println();
 
 			switch (strTransactionStatus) {
 				case "SUCCESS": {
@@ -2139,7 +2157,7 @@ public class USSDAPI {
 
 			pesa.setReceiverType("SHORT_CODE");
 			pesa.setReceiverIdentifier(strReceiverIdentifier);
-			pesa.setReceiverAccount(strReceiverAccount);
+			pesa.setReceiverAccount(strBankAccountTo);
 			pesa.setReceiverName(strReceiverName);
 			pesa.setReceiverOtherDetails("<DATA/>");
 
@@ -3129,6 +3147,14 @@ public class USSDAPI {
 			e.printStackTrace();
 		}
 		return blCheckEmployerRestriction;
+	}
+
+	public static String truncateString(String strValue, int expectedLength) {
+		if (strValue != null && !strValue.isEmpty()) {
+			strValue = strValue.trim();
+			return strValue.substring(0, Math.min(strValue.length(), expectedLength));
+		}
+		return "";
 	}
 
 }

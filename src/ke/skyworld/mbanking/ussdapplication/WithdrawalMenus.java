@@ -38,7 +38,6 @@ public interface WithdrawalMenus {
                     String strAccount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.WITHDRAWAL_ACCOUNT.name());
                     if (strAccount.length() > 0){
                         //USE ONLY WHEN WITHDRAWAL TO OTHER NUMBER IS ENABLED
-                        /*
                         APIUtils.WithdrawalChannel withdrawalChannel = APIUtils.getWithdrawalChannel("M-PESA");
                         if(withdrawalChannel != null){
                             if(withdrawalChannel.hasWithdrawalToOtherNumberEnabled()){
@@ -52,12 +51,11 @@ public interface WithdrawalMenus {
                             String strFullHeader = strHeader + "\n{Select a valid menu}\n";
                             theUSSDResponse = getWithdrawalOptionMenu(theUSSDRequest, strFullHeader);
                         }
-                        */
 
                         //USE TO SKIP WHEN WITHDRAWAL TO OTHER NUMBER IS DISABLED
-                        String strResponse = strHeader + "\nEnter amount:";
+                      /*  String strResponse = strHeader + "\nEnter amount:";
                         theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest,strResponse, AppConstants.USSDDataType.WITHDRAWAL_AMOUNT, USSDConstants.USSDInputType.STRING,"NO");
-
+*/
                     }else{
                         String strFullHeader = strHeader + "\n{Select a valid account}\n";
                         theUSSDResponse = GeneralMenus.displayMenu_BankAccounts(theUSSDRequest, theParam, strFullHeader, USSDAPIConstants.AccountType.FOSA, AppConstants.USSDDataType.WITHDRAWAL_ACCOUNT);
@@ -296,6 +294,9 @@ public interface WithdrawalMenus {
     default USSDResponse getWithdrawalOptionMenu(USSDRequest theUSSDRequest, String theHeader) {
         USSDResponse theUSSDResponse = null;
         AppMenus theAppMenus = new AppMenus();
+
+        System.out.println("strLabel:");
+
         try{
             ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption  = new ArrayList<USSDResponseSELECTOption>();
 
@@ -306,6 +307,7 @@ public interface WithdrawalMenus {
                 String strOptionMenu = String.valueOf(i+1);
                 String strName = lsWithdrawalChannels.get(i).getName();
                 String strLabel = lsWithdrawalChannels.get(i).getLabel();
+                System.out.println("strLabel 1:"+strLabel);
                 USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strOptionMenu, strName, strOptionMenu+": "+strLabel);
             }
             /*USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, "1", "M-PESA", "1: M-PESA");
