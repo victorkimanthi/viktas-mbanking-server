@@ -227,6 +227,10 @@ public class MAPPAPIProcessor {
                     theMAPPResponse = theMAPPAPI.lipaNa(theMAPPRequest);
                     break;
                 }
+                case "GET_LIPA_NA_VIKASH_ACCOUNTS": {
+                    theMAPPResponse = theMAPPAPI.getLipaNaVikashAccounts(theMAPPRequest,MAPPConstants.AccountType.FOSA);
+                    break;
+                }
                 case "UNKNOWN": {
                     theMAPPResponse = theMAPPAPI.accountBalanceEnquiry(theMAPPRequest);
                     break;

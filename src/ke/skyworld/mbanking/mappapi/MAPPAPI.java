@@ -7322,6 +7322,111 @@ public class MAPPAPI {
         return theMAPPResponse;
     }
 
+    public MAPPResponse getLipaNaVikashAccounts(MAPPRequest theMAPPRequest, MAPPConstants.AccountType theAccountType) {
+
+        MAPPResponse theMAPPResponse = null;
+
+        try {
+
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+
+            boolean bFOSA = false;
+
+            if (theAccountType.getValue().equals("FOSA")) {
+                bFOSA = true;
+            }
+
+            LinkedHashMap<String, String> accounts = null;
+
+            switch (theAccountType.getValue()) {
+                case "FOSA": {
+                    accounts = getBankAccounts(theMAPPRequest, "WITHDRAWABLE");
+                    break;
+                }
+                default: {
+                    accounts = getBankAccounts(theMAPPRequest, "WITHDRAWABLE");
+                }
+
+            }
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            // Root element - MSG
+            Document doc = docBuilder.newDocument();
+
+            String strTitle = "Withdrawal Accounts";
+
+            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
+
+            MAPPConstants.ResponseAction enResponseAction = CON;
+            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+
+            String strCharge = "NO";
+
+            Element elData = doc.createElement("DATA");
+            Element elAccounts = doc.createElement("ACCOUNTS");
+            elData.appendChild(elAccounts);
+
+            Element elPayOptions = doc.createElement("PAYMENT_OPTIONS");
+            elData.appendChild(elPayOptions);
+
+            for (String accountNumber : accounts.keySet()) {
+                String strAccountName = accounts.get(accountNumber);
+
+                Element elAccount = doc.createElement("ACCOUNT");
+                elAccount.setAttribute("NO", accountNumber);
+                elAccount.setTextContent(strAccountName);
+                elAccounts.appendChild(elAccount);
+            }
+
+
+            Element elOption1 = doc.createElement("OPTION");
+            elOption1.setTextContent("M-Pesa");
+            elPayOptions.appendChild(elOption1);
+
+            Attr attr = doc.createAttribute("NO");
+            attr.setValue("M-PESA");
+            elOption1.setAttributeNode(attr);
+
+            Element elOption2 = doc.createElement("OPTION");
+            elOption2.setTextContent("Savings Account");
+            elPayOptions.appendChild(elOption2);
+
+            Attr attr1 = doc.createAttribute("NO");
+            attr1.setValue("SAVINGS");
+            elOption2.setAttributeNode(attr1);
+
+
+            double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
+            double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
+
+            //create element AMOUNT_LIMITS and append to element DATA
+            Element elWithdrawalLimits = doc.createElement("AMOUNT_LIMITS");
+            Element elMinAmount = doc.createElement("MIN_AMOUNT");
+            elMinAmount.setTextContent(String.valueOf(dblWithdrawalMin));
+            Element elMaxAmount = doc.createElement("MAX_AMOUNT");
+            elMaxAmount.setTextContent(String.valueOf(dblWithdrawalMax));
+            elWithdrawalLimits.appendChild(elMinAmount);
+            elWithdrawalLimits.appendChild(elMaxAmount);
+            elData.appendChild(elWithdrawalLimits);
+
+            generateResponseMSGNode(doc, elData, theMAPPRequest, enResponseAction, enResponseStatus, strCharge, strTitle, enDataType);
+
+            //Response
+            Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+
+        } catch (Exception e) {
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+        }
+
+        return theMAPPResponse;
+    }
+
     public String getTraceID(MAPPRequest theMAPPRequest){
         //return theMAPPRequest.getTraceID(); //+APIUtils.getCurrentDate("yyyyMMddHHmmssSSS");
         return UUID.randomUUID().toString().toLowerCase();
