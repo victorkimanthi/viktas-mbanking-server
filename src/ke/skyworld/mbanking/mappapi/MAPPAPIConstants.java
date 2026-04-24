@@ -10,6 +10,7 @@ public class MAPPAPIConstants {
         DEPOSIT,
         APPLY_LOAN,
         PAY_LOAN,
+        MPESA_FLOAT_PURCHASE,
     }
 
     public enum OTP_VERIFICATION_STATUS {

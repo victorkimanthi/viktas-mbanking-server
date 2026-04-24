@@ -35,12 +35,18 @@ import javax.xml.datatype.DatatypeFactory;
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.text.DateFormat;
@@ -206,6 +212,7 @@ public class MAPPAPI {
 
             //System.out.println(strAppID);
             Node ndRequestMSG = theMAPPRequest.getMSG();
+            printXmlFromNode(ndRequestMSG);
 
             String strNotificationID = configXPath.evaluate("NOTIFICATION_ID", ndRequestMSG).trim();
             if (theOTPType == MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL) {
@@ -6844,9 +6851,11 @@ public class MAPPAPI {
                     return null;
                 }*/
 
-                double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
+               /* double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
                 double dblWithdrawalMax = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
-
+*/
+                double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
+                double dblWithdrawalMax = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMaximum());
 
                 if (!strAmount.matches("^[1-9][0-9]*$")) {
                     strTitle = "ERROR: Float Purchase";
@@ -6895,7 +6904,7 @@ public class MAPPAPI {
                     pesa.setInitiatorAccount(strMobileNumber);
                     pesa.setInitiatorName(strMemberName);
                     pesa.setInitiatorReference(strTraceID);
-                    pesa.setInitiatorApplication("USSD");
+                    pesa.setInitiatorApplication("MAPP");
                     pesa.setInitiatorOtherDetails("<DATA/>");
 
                     pesa.setSourceType("ACCOUNT_NO");
@@ -6930,7 +6939,7 @@ public class MAPPAPI {
                     pesa.setTransactionAmount(Double.parseDouble(strAmount));
                     pesa.setBatchReference(strMAPPSessionID);
                     pesa.setCorrelationReference(strTraceID);
-                    pesa.setCorrelationApplication("USSD");
+                    pesa.setCorrelationApplication("MAPP");
                     pesa.setTransactionCurrency("KES");
                     pesa.setPESAType(PESAConstants.PESAType.PESA_OUT);
                     pesa.setPESAAction(PESAConstants.PESAAction.B2B);
@@ -7221,7 +7230,29 @@ public class MAPPAPI {
                     strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(strDepositMaximum, "#,###.##");
                     enResponseStatus = ERROR;
                 }
-            } else if (strPaymentOption.equals("SAVINGS")) {
+            }  else {
+                strResponseText = "You will be prompted by M-PESA for payment\nPaybill no: " + strSender + "\n" + "A/C: " + strBusinessShortCode + "\n" + "Amount: KES " + strAmount + "\n";
+                String strOriginatorID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP, lnSessionID, theMAPPRequest.getSequence());
+
+                Thread worker = new Thread(() -> {
+                    PESAAPI thePESAAPI = new PESAAPI();
+                    thePESAAPI.pesa_C2B_BUY_GOODS_Request(
+                            strOriginatorID,
+                            theMAPPRequest.getTraceID(),
+                            String.valueOf(theMAPPRequest.getUsername()),
+                            String.valueOf(theMAPPRequest.getUsername()),
+                            strBusinessShortCode,
+                            "KES",
+                            dblAmountEntered,
+                            "BUY_GOODS",
+                            strTraceID,
+                            "MAPP",
+                            "MBANKING_SERVER");
+
+                });
+                worker.start();
+            }
+           /* else if (strPaymentOption.equals("SAVINGS")) {
                 String strSourceAccount = configXPath.evaluate("ACCOUNT_NO", ndRequestMSG).trim();
                 String strDestinationAccount = strBusinessShortCode;
 
@@ -7280,7 +7311,8 @@ public class MAPPAPI {
                         strResponseText = "An error occurred. Please try again after a few minutes.";
                     }
                 }
-            } else {
+            }
+            else {
                 strResponseText = "You will be prompted by M-PESA for payment\nPaybill no: " + strSender + "\n" + "A/C: " + strBusinessShortCode + "\n" + "Amount: KES " + strAmount + "\n";
                 String strOriginatorID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP, lnSessionID, theMAPPRequest.getSequence());
 
@@ -7302,7 +7334,7 @@ public class MAPPAPI {
                 });
                 worker.start();
             }
-
+*/
             elData.setTextContent(strResponseText);
 
             generateResponseMSGNode(doc, elData, theMAPPRequest, CON, enResponseStatus, strCharge, strTitle, enDataType);
@@ -7331,7 +7363,7 @@ public class MAPPAPI {
             System.out.println(this.getClass().getSimpleName() + "." + new Object() {
             }.getClass().getEnclosingMethod().getName() + "()");
 
-            boolean bFOSA = false;
+           /* boolean bFOSA = false;
 
             if (theAccountType.getValue().equals("FOSA")) {
                 bFOSA = true;
@@ -7348,7 +7380,7 @@ public class MAPPAPI {
                     accounts = getBankAccounts(theMAPPRequest, "WITHDRAWABLE");
                 }
 
-            }
+            }*/
 
             DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
@@ -7372,15 +7404,14 @@ public class MAPPAPI {
             Element elPayOptions = doc.createElement("PAYMENT_OPTIONS");
             elData.appendChild(elPayOptions);
 
-            for (String accountNumber : accounts.keySet()) {
+           /* for (String accountNumber : accounts.keySet()) {
                 String strAccountName = accounts.get(accountNumber);
 
                 Element elAccount = doc.createElement("ACCOUNT");
                 elAccount.setAttribute("NO", accountNumber);
                 elAccount.setTextContent(strAccountName);
                 elAccounts.appendChild(elAccount);
-            }
-
+            }*/
 
             Element elOption1 = doc.createElement("OPTION");
             elOption1.setTextContent("M-Pesa");
@@ -7390,14 +7421,14 @@ public class MAPPAPI {
             attr.setValue("M-PESA");
             elOption1.setAttributeNode(attr);
 
-            Element elOption2 = doc.createElement("OPTION");
+           /* Element elOption2 = doc.createElement("OPTION");
             elOption2.setTextContent("Savings Account");
             elPayOptions.appendChild(elOption2);
 
             Attr attr1 = doc.createAttribute("NO");
             attr1.setValue("SAVINGS");
             elOption2.setAttributeNode(attr1);
-
+*/
 
             double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
             double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
@@ -7430,5 +7461,29 @@ public class MAPPAPI {
     public String getTraceID(MAPPRequest theMAPPRequest){
         //return theMAPPRequest.getTraceID(); //+APIUtils.getCurrentDate("yyyyMMddHHmmssSSS");
         return UUID.randomUUID().toString().toLowerCase();
+    }
+
+    public static void printXmlFromNode(Node node) {
+        try {
+            // Create a transformer
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+
+            // Set transformer properties to format the output
+            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
+
+            // Create a StringWriter to hold the output
+            StringWriter writer = new StringWriter();
+            StreamResult result = new StreamResult(writer);
+
+            // Transform the node to the StringWriter
+            transformer.transform(new DOMSource(node), result);
+
+            // Print the formatted XML
+            System.out.println(writer.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
