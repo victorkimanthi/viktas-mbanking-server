@@ -114,7 +114,8 @@ public class MAPPAPIProcessor {
                     break;
                 }
                 case "LOAN_BALANCE": {
-                    theMAPPResponse = theMAPPAPI.loanBalanceEnquiry(theMAPPRequest);
+//                    theMAPPResponse = theMAPPAPI.loanBalanceEnquiry(theMAPPRequest);
+                    theMAPPResponse = theMAPPAPI.loanBalanceEnquiryAll(theMAPPRequest);
                     break;
                 }
                 case "DISABLE_ATM_CARD": {
@@ -143,7 +144,8 @@ public class MAPPAPIProcessor {
                     break;
                 }
                 case "ACCOUNT_BALANCE": {
-                    theMAPPResponse = theMAPPAPI.accountBalanceEnquiry(theMAPPRequest);
+//                    theMAPPResponse = theMAPPAPI.accountBalanceEnquiry(theMAPPRequest);
+                    theMAPPResponse = theMAPPAPI.accountBalanceEnquiryAll(theMAPPRequest);
                     break;
                 }
                 case "LOAN_LIMIT": {

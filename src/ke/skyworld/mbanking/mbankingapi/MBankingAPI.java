@@ -7,6 +7,7 @@ import ke.skyworld.lib.mbanking.msg.MSGLocalParameters;
 import ke.skyworld.lib.mbanking.msg.MSGProcessor;
 import ke.skyworld.lib.mbanking.pesa.PESALocalParameters;
 import ke.skyworld.lib.mbanking.ussd.USSDLocalParameters;
+import ke.skyworld.mbanking.mappapi.MAPPAPI;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
@@ -52,6 +53,9 @@ public class MBankingAPI {
             System.out.println("MO Balance Enquiry Message - 25471111:");
             System.out.println(balanceEnquiryMessage);
             System.out.println();*/
+
+            /// MAPP SIMULATION
+            MAPPAPI.MAPPRequestSimulation();
 
         } catch (Exception e){
             System.err.println("MBankingAPI.processOnStartup Error: " + e.getMessage());

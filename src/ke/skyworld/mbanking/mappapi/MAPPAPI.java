@@ -22,12 +22,12 @@ import ke.skyworld.mbanking.mbankingapi.MBankingAPIUtils;
 import ke.skyworld.mbanking.pesaapi.PESAAPI;
 import ke.skyworld.mbanking.pesaapi.PESAAPIConstants;
 import ke.skyworld.mbanking.pesaapi.PesaParam;
-import ke.skyworld.mbanking.ussdapi.APIUtils;
 import ke.skyworld.mbanking.ussdapi.USSDAPIConstants;
 import ke.skyworld.mbanking.ussdapplication.AppConstants;
 import ke.skyworld.mbanking.xtreme.XTremeDBCache;
 import ke.skyworld.sp.manager.SPManager;
 import ke.skyworld.sp.manager.SPManagerConstants;
+import ke.skyworld.sp.manager.utils.JvmManager;
 import org.w3c.dom.*;
 import org.xml.sax.InputSource;
 
@@ -37,6 +37,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
@@ -51,6 +52,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -62,7 +64,6 @@ import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.SUCCESS
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponsesDataType.TEXT;
 import static ke.skyworld.lib.mbanking.register.RegisterConstants.IdentityType.NATIONAL_ID;
 import static ke.skyworld.mbanking.ussdapi.APIUtils.*;
-import static ke.skyworld.mbanking.ussdapi.USSDAPI.truncateString;
 
 public class MAPPAPI {
 
@@ -231,7 +232,7 @@ public class MAPPAPI {
             String strDescription = "Welcome to Mobile Banking. Please visit your nearest branch to activate your account for mobile banking.";
             String strDbLoginActionValidDate = "";
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction;
             MAPPConstants.ResponseStatus enResponseStatus;
@@ -276,13 +277,13 @@ public class MAPPAPI {
                             case "SUSPEND": {
                                 int intLoginActionDuration = Integer.parseInt(currentAuthenticationAttemptsAction.get("DURATION"));
                                 String strLoginActionDurationUnit = currentAuthenticationAttemptsAction.get("UNIT");
-                                intLoginActionDuration = APIUtils.convertToSeconds(intLoginActionDuration, strLoginActionDurationUnit);
-                                Date loginActionValidDate = APIUtils.add(intLoginActionDuration, Calendar.SECOND);
-                                String strLoginActionValidDate = APIUtils.convertDateToDateString(loginActionValidDate);
+                                intLoginActionDuration = convertToSeconds(intLoginActionDuration, strLoginActionDurationUnit);
+                                Date loginActionValidDate = add(intLoginActionDuration, Calendar.SECOND);
+                                String strLoginActionValidDate = convertDateToDateString(loginActionValidDate);
 
                                 //Persist Action to DB
                                 HashMap<String,String> hmRValAuth = CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                        "PASSWORD",  strLoginAction, strLoginActionValidDate, strLoginActionTag, APIUtils.getCurrentDateTime());
+                                        "PASSWORD",  strLoginAction, strLoginActionValidDate, strLoginActionTag, getCurrentDateTime());
                                 String friendlyActionDuration = currentAuthenticationAttemptsAction.get("DURATION") + " " + strLoginActionDurationUnit + "(S)";
 
                                 if(!hmRValAuth.isEmpty()){
@@ -300,7 +301,7 @@ public class MAPPAPI {
                             case "LOCK": {
                                 //Persist Action to DB
                                 HashMap<String,String> hmRValAuth = CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                        "PASSWORD",  strLoginAction, null, strLoginActionTag, APIUtils.getCurrentDateTime());
+                                        "PASSWORD",  strLoginAction, null, strLoginActionTag, getCurrentDateTime());
 
                                 if(!hmRValAuth.isEmpty()){
                                     String setAuthStatus = hmRValAuth.get("set_auth_security_parameters_status");
@@ -316,7 +317,7 @@ public class MAPPAPI {
                             default: {
                                 //Persist Action to DB
                                 HashMap<String,String> hmRValAuth = CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                        "PASSWORD",  strLoginAction, null, strLoginActionTag, APIUtils.getCurrentDateTime());
+                                        "PASSWORD",  strLoginAction, null, strLoginActionTag, getCurrentDateTime());
                             }
                         }
                     }
@@ -345,7 +346,7 @@ public class MAPPAPI {
                 } else if (strLoginStatus.equals("SUCCESS")) {
                     //Reset Login Auth Parameters
                     HashMap<String,String> hmRValAuth = CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                            "PASSWORD",  "NONE", null, null, APIUtils.getCurrentDateTime());
+                            "PASSWORD",  "NONE", null, null, getCurrentDateTime());
                 }
             }
 
@@ -358,7 +359,7 @@ public class MAPPAPI {
                     strTitle = "Login Successful";
                     strDescription = "The login was successful";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                    enResponseStatus = SUCCESS;
                     blLoginSuccessful = true;
 
                     if (blOTPVerificationRequired) {
@@ -391,7 +392,7 @@ public class MAPPAPI {
                     elData.appendChild(elActivationInstructions);
 
                     enResponseAction = MAPPConstants.ResponseAction.CHALLENGE_LOGIN;
-                    enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                    enResponseStatus = SUCCESS;
                     break;
                 }
                 case "MOBILE_APP_INACTIVE_WITH_KYC":
@@ -403,7 +404,7 @@ public class MAPPAPI {
                     strDescription = "Your Mobile App is not activated. Select OK to activate the Mobile App." + ":::::" + strActivationInstructions;
 
                     enResponseAction = MAPPConstants.ResponseAction.CHALLENGE_LOGIN;
-                    enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                    enResponseStatus = SUCCESS;
                     break;
                 }
                 case "INCORRECT_PIN": {
@@ -417,30 +418,30 @@ public class MAPPAPI {
                     if (theOTPType == MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL) {
                         enResponseAction = CON;
                     }
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
                 case "SUSPEND":
                 case "SUSPENDED": {
                     strTitle = "Account Access Suspended";
-                    Date loginActionValidDate = APIUtils.convertDateStringToDate(strDbLoginActionValidDate);
-                    Date currentDate = APIUtils.getCurrentJavaUtilDateTime();
+                    Date loginActionValidDate = convertDateStringToDate(strDbLoginActionValidDate);
+                    Date currentDate = getCurrentJavaUtilDateTime();
                     if (loginActionValidDate != null && currentDate.before(loginActionValidDate)) {
-                        String actionDuration = APIUtils.getPrettyDateTimeDifferenceRoundedUp(currentDate, Objects.requireNonNull(loginActionValidDate));
+                        String actionDuration = getPrettyDateTimeDifferenceRoundedUp(currentDate, Objects.requireNonNull(loginActionValidDate));
                         String strTryAgainIn = "Please try again in " + actionDuration;
                         strDescription = "Sorry, your account is SUSPENDED from using " + AppConstants.strSACCOName + " mobile banking services. " + strTryAgainIn;
                         enResponseAction = MAPPConstants.ResponseAction.END;
-                        enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                        enResponseStatus = ERROR;
                     } else {
                         //Reset Login Auth Parameters
                         HashMap<String,String> hmRValAuth = CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                "PASSWORD",  "NONE", null, null, APIUtils.getCurrentDateTime());
+                                "PASSWORD",  "NONE", null, null, getCurrentDateTime());
 
                         if(!hmLoginRVal.isEmpty() && hmRValAuth.get("set_auth_security_parameters_status").equals("SUCCESS")){
                             strTitle = "Login Successful";
                             strDescription = "The login was successful";
                             enResponseAction = CON;
-                            enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                            enResponseStatus = SUCCESS;
                             blLoginSuccessful = true;
 
                             if (blOTPVerificationRequired) {
@@ -450,7 +451,7 @@ public class MAPPAPI {
                             strTitle = "Login Failed";
                             strDescription = "An Error occurred, please try again";
                             enResponseAction = MAPPConstants.ResponseAction.END;
-                            enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                            enResponseStatus = ERROR;
                         }
                     }
                     break;
@@ -460,14 +461,14 @@ public class MAPPAPI {
                     strTitle = "Account Access Locked";
                     strDescription = "Sorry, your " + AppConstants.strSACCOName + " mobile banking account is LOCKED. Please contact us for assistance.";
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
                 case "BLOCKED": {
                     strTitle = "Account Blocked";
                     strDescription = "Your account is blocked, please visit your nearest SACCO branch for assistance.";
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
                 case "NOT_FOUND": {
@@ -476,19 +477,19 @@ public class MAPPAPI {
                     strDescription = "You have entered an incorrect username or password, please try again";
 
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
                 case "ERROR": {
                     strTitle = "Login Failed";
                     strDescription = "An Error occurred, please try again";
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
                 default: {
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 }
             }
 
@@ -529,9 +530,9 @@ public class MAPPAPI {
         return theMAPPResponse;
     }
 
-    public APIUtils.OTP checkOTPRequirement(MAPPRequest theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE theOtpCheckStage){
+    public OTP checkOTPRequirement(MAPPRequest theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE theOtpCheckStage){
         boolean blRval = false;
-        APIUtils.OTP otp = new APIUtils.OTP(0, 0, "", "",false);
+        OTP otp = new OTP(0, 0, "", "",false);
         otp.setEnabled(false);
 
         Node ndRequestMSG;
@@ -611,13 +612,13 @@ public class MAPPAPI {
             String strTitle = "Error";
             String strDescription = "An error occurred. Please try again after a few minutes.";
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             String strStartKey = "";
             strStartKey = (String) InMemoryCache.retrieve(strUsername + strActivationCode);
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+            MAPPConstants.ResponseStatus enResponseStatus = ERROR;
 
             Element elData = doc.createElement("DATA");
 
@@ -634,7 +635,7 @@ public class MAPPAPI {
                 String strDbOTPActionValidDate = hmAuthSecurityRVal.get("auth_action_valid_date");
                 Date dbOTPActionValidDate = null;
                 if(strDbOTPActionValidDate != null && !strDbOTPActionValidDate.isEmpty()){
-                    APIUtils.convertDateStringToDate(strDbOTPActionValidDate);
+                    convertDateStringToDate(strDbOTPActionValidDate);
                 }
 
                 //Increase otp attempts
@@ -649,7 +650,7 @@ public class MAPPAPI {
                 strDescription = "Sorry, your account is SUSPENDED from validating one time password. " + strTryAgainIn;*/
                     strDescription = "Sorry, your account has been SUSPENDED from validating one time password.";
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else {
                     if (strActivationCode.equalsIgnoreCase(strStartKey)) {
                         String strUserAccountStatus;
@@ -674,10 +675,10 @@ public class MAPPAPI {
                                     strDescription = "Your OTP validation was successful";
                                 }
                                 enResponseAction = CON;
-                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseStatus = SUCCESS;
                                 //Reset OTP details in Database
                                 HashMap<String,String> hmRValAuth = CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                        "OTP",  "NONE", null, null, APIUtils.getCurrentDateTime());
+                                        "OTP",  "NONE", null, null, getCurrentDateTime());
                                 InMemoryCache.remove(strUsername);
                                 InMemoryCache.remove(strUsername + strActivationCode);
                                 break;
@@ -704,7 +705,7 @@ public class MAPPAPI {
                     } else {
                         //Set OTP Attempts
                         CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                "OTP", otpAttempts,  "NONE", null, null, APIUtils.getCurrentDateTime());
+                                "OTP", otpAttempts,  "NONE", null, null, getCurrentDateTime());
 
                         strTitle = "Incorrect Activation Code";
                         strDescription = "The activation code you entered is either incorrect or has expired. Please confirm the activation code and try again.";
@@ -740,9 +741,9 @@ public class MAPPAPI {
                                     enResponseAction = MAPPConstants.ResponseAction.END;
                                     int otpActionDuration = Integer.parseInt(currentAuthenticationAttemptsAction.get("DURATION"));
                                     String otpActionDurationUnit = currentAuthenticationAttemptsAction.get("UNIT");
-                                    otpActionDuration = APIUtils.convertToSeconds(otpActionDuration, otpActionDurationUnit);
-                                    Date otpActionValidDate = APIUtils.add(otpActionDuration, Calendar.SECOND);
-                                    String strOTPActionValidDate = APIUtils.convertDateToDateString(otpActionValidDate);
+                                    otpActionDuration = convertToSeconds(otpActionDuration, otpActionDurationUnit);
+                                    Date otpActionValidDate = add(otpActionDuration, Calendar.SECOND);
+                                    String strOTPActionValidDate = convertDateToDateString(otpActionValidDate);
 
                                     if (resetOTP.equals("YES")) {
                                         //remove OTP
@@ -752,7 +753,7 @@ public class MAPPAPI {
                                     //Persist Action to DB
                                     String friendlyActionDuration = currentAuthenticationAttemptsAction.get("DURATION") + " " + otpActionDurationUnit + "(S)";
                                     CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                            "OTP", otpAttempts,  otpAction, strOTPActionValidDate, otpActionTag, APIUtils.getCurrentDateTime());
+                                            "OTP", otpAttempts,  otpAction, strOTPActionValidDate, otpActionTag, getCurrentDateTime());
 
                                     //Override Incorrect PIN message
                                     strTitle = "Account Suspended";
@@ -771,7 +772,7 @@ public class MAPPAPI {
 
                                     //Persist Action to DB
                                     CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                            "OTP", otpAttempts,  otpAction, null, otpActionTag, APIUtils.getCurrentDateTime());
+                                            "OTP", otpAttempts,  otpAction, null, otpActionTag, getCurrentDateTime());
 
                                     //Override Incorrect PIN message
                                     strTitle = "Account Locked";
@@ -783,7 +784,7 @@ public class MAPPAPI {
                                 default: {
                                     //Persist Action to DB
                                     CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
-                                            "OTP", otpAttempts,  otpAction, null, otpActionTag, APIUtils.getCurrentDateTime());
+                                            "OTP", otpAttempts,  otpAction, null, otpActionTag, getCurrentDateTime());
 
                                     if (resetOTP.equals("YES")) {
                                         elData.setAttribute("ACTION", "REQUEST_OTP");
@@ -868,12 +869,12 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.GENERATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.GENERATION);
 
             int intOTPTTL = 0;
             int intOTPLength = 0;
@@ -919,7 +920,7 @@ public class MAPPAPI {
                 strResponseText = "There was an error sending your One Time Password. Please try again";
                 strCharge = "NO";
                 enResponseAction = CON;
-                enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                enResponseStatus = ERROR;
             }
 
             Element elData = doc.createElement("DATA");
@@ -970,7 +971,7 @@ public class MAPPAPI {
             String strTitle = "";
             String strDescription = "";
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction;
             MAPPConstants.ResponseStatus enResponseStatus;
@@ -991,14 +992,14 @@ public class MAPPAPI {
                     strTitle = "Activation Successful";
                     strDescription = "Mobile app account activation was successful";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                    enResponseStatus = SUCCESS;
                     break;
                 }
                 case "ERROR": {
                     strTitle = "Account Blocked";
                     strDescription = "Your account is blocked, please visit you nearest SACCO branch for assistance.";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
                 case "INVALID_ACCOUNT": {
@@ -1012,14 +1013,14 @@ public class MAPPAPI {
                     strTitle = "Account Not Found";
                     strDescription = "An error occurred. Please try again after a few minutes.";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
                 default: {
                     strTitle = "Activation Failed";
                     strDescription = "An error occurred. Please try again after a few minutes.";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     break;
                 }
             }
@@ -1069,9 +1070,9 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strName = configXPath.evaluate("NAME", ndRequestMSG).trim();
             String strPhoneNumber = configXPath.evaluate("PHONE_NUMBER", ndRequestMSG).trim();
@@ -1112,7 +1113,7 @@ public class MAPPAPI {
                         String strImageData = configXPath.evaluate("@DATA", nlMemberImages.item(i)).trim();
 
                         String strImagesPathForPhotographs = strImagesPath+"\\photographs\\"+strImageName+"."+strImageType;
-                        APIUtils.fnCreateFileFromBase64(strImageData, strImagesPathForPhotographs);
+                        fnCreateFileFromBase64(strImageData, strImagesPathForPhotographs);
                         //todo - Implement Integration to CBS
                         //Navision.getPort().updateVirtualMemberRegistration(strImageName, strImagesPathForPhotographs.replace("\\\\", "\\"), strEntryNumber, "Member Photographs");
                     }
@@ -1123,7 +1124,7 @@ public class MAPPAPI {
                         String strImageData = configXPath.evaluate("@DATA", nlNationalIDImages.item(i)).trim();
 
                         String strImagesPathForIDs = strImagesPath+"\\ids\\"+strImageName+"."+strImageType;
-                        APIUtils.fnCreateFileFromBase64(strImageData, strImagesPathForIDs);
+                        fnCreateFileFromBase64(strImageData, strImagesPathForIDs);
                         //todo - Implement Integration to CBS
                         //Navision.getPort().updateVirtualMemberRegistration(strImageName, strImagesPathForIDs.replace("\\\\", "\\"), strEntryNumber, "National ID");
                     }
@@ -1132,7 +1133,7 @@ public class MAPPAPI {
                     strResponseText = "Your member registration was received successfully.";
                     strCharge = "YES";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                    enResponseStatus = SUCCESS;
                     break;
                 }
                 case "ERROR":{
@@ -1144,7 +1145,7 @@ public class MAPPAPI {
                 }
                 default: {
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     strTitle= "ERROR: Register New Member";
                     strResponseText = "An error occurred. Please try again after a few minutes.";
                 }
@@ -1179,7 +1180,7 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
             MAPPConstants.ResponseAction enResponseAction;
             MAPPConstants.ResponseStatus enResponseStatus;
 
@@ -1409,7 +1410,7 @@ public class MAPPAPI {
 
                     strCharge = "YES";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                    enResponseStatus = SUCCESS;
                     break;
                 }
                 case "ERROR":{
@@ -1422,7 +1423,7 @@ public class MAPPAPI {
                 }
                 default: {
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     strTitle= "ERROR";
                     strResponseText = "An error occurred. Please try again after a few minutes.";
                     elData.setTextContent(strResponseText);
@@ -1529,7 +1530,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -1600,7 +1601,7 @@ public class MAPPAPI {
                 String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime());
 
                 /*Added the function below under APIUtils*/
-                LinkedList<HashMap<String, String>> llHmStatementPeriods = APIUtils.getStatementPeriods(MBankingConstants.ApplicationType.MAPP);
+                LinkedList<HashMap<String, String>> llHmStatementPeriods = getStatementPeriods(MBankingConstants.ApplicationType.MAPP);
 
                 llHmStatementPeriods.forEach(hmStatementPeriods -> {
                     String strName = hmStatementPeriods.get("NAME");
@@ -1737,7 +1738,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -1823,7 +1824,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -1924,7 +1925,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2065,7 +2066,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2094,8 +2095,8 @@ public class MAPPAPI {
                 elAccounts.appendChild(elAccount);
             }
 
-            LinkedList<APIUtils.ServiceProviderAccount> llSPAAccounts = APIUtils.getSPAccounts(SPManagerConstants.ProviderAccountType.BANK_SHORT_CODE);
-            for (APIUtils.ServiceProviderAccount serviceProviderAccount : llSPAAccounts) {
+            LinkedList<ServiceProviderAccount> llSPAAccounts = getSPAccounts(SPManagerConstants.ProviderAccountType.BANK_SHORT_CODE);
+            for (ServiceProviderAccount serviceProviderAccount : llSPAAccounts) {
                 Element elBank2 = doc.createElement("BANK");
                 elBank2.setAttribute("PAYBILL_NO", serviceProviderAccount.getProviderAccountIdentifier());
                 elBank2.setTextContent(serviceProviderAccount.getProviderAccountLongTag());
@@ -2202,7 +2203,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2231,9 +2232,9 @@ public class MAPPAPI {
             }
 
             //create element SERVICE and append to element SERVICES
-            LinkedList<APIUtils.ServiceProviderAccount> llSPAAccounts = APIUtils.getSPAccounts(SPManagerConstants.ProviderAccountType.UTILITY_CODE);
+            LinkedList<ServiceProviderAccount> llSPAAccounts = getSPAccounts(SPManagerConstants.ProviderAccountType.UTILITY_CODE);
             Element elService;
-            for(APIUtils.ServiceProviderAccount serviceProviderAccount : llSPAAccounts){
+            for(ServiceProviderAccount serviceProviderAccount : llSPAAccounts){
                 elService = doc.createElement("SERVICE");
                 elService.setAttribute("PAYBILL_NO", serviceProviderAccount.getProviderAccountIdentifier());
                 elService.setAttribute("REF_NAME", serviceProviderAccount.getProviderAccountTypeTag());
@@ -2346,7 +2347,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2454,10 +2455,10 @@ public class MAPPAPI {
 
             String strTitle = "Loans";
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2552,7 +2553,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
             String strResponseText = "An error occurred. Please try again after a few minutes.";
@@ -2562,10 +2563,10 @@ public class MAPPAPI {
                 strResponseText = "You loan guarantors have been added successfully. Please contact the guarantors so that they can approve guarantorship.";
                 strCharge = "YES";
                 enResponseAction = CON;
-                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                enResponseStatus = SUCCESS;
             } else {
                 enResponseAction = CON;
-                enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                enResponseStatus = ERROR;
                 strTitle = "ERROR: Add Loan Guarantors";
             }
 
@@ -2656,7 +2657,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2691,7 +2692,7 @@ public class MAPPAPI {
                     Element elGuarantors = doc.createElement("GUARANTORS");
 
                     for (int j = 0; j < nlGuarantors.getLength(); j++) {
-                        String strGuarantorName = APIUtils.titleCase(configXPath.evaluate("GuarantorName", nlGuarantors.item(j)).trim());
+                        String strGuarantorName = titleCase(configXPath.evaluate("GuarantorName", nlGuarantors.item(j)).trim());
                         String strPhoneNo = configXPath.evaluate("PhoneNo", nlGuarantors.item(j)).trim();
                         String strMemberNo = configXPath.evaluate("MemberNo", nlGuarantors.item(j)).trim();
                         String strLoanGuarantorStatus = configXPath.evaluate("LoanStatus", nlGuarantors.item(j)).trim();
@@ -2756,7 +2757,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2874,7 +2875,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -2919,7 +2920,7 @@ public class MAPPAPI {
 
             System.out.println();
             System.out.println("MSG Node for MAPP Get Loan Types:");
-            System.out.println(APIUtils.nodeToString(ndResponseMSG));
+            System.out.println(nodeToString(ndResponseMSG));
             System.out.println();
 
             theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
@@ -2963,13 +2964,13 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
 
             String strAccountNo = configXPath.evaluate("ACCOUNT_NO", ndRequestMSG).trim();
 
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+            MAPPConstants.ResponseStatus enResponseStatus = ERROR;
 
             String strProduct = "";
             String strDate = "";
@@ -2987,7 +2988,7 @@ public class MAPPAPI {
 
             if(!hmRVal.isEmpty() && strAccountBalanceEnquiryStatus.equals("SUCCESS")){
                 strProduct = String.valueOf(hmRVal.get("account_name"));
-                strDate = APIUtils.getCurrentDateTime();
+                strDate = getCurrentDateTime();
                 strBookBalance = "KES "+Utils.formatDouble(String.valueOf(hmRVal.get("account_balance")), "#,##0.00");
                 strAvailableBalance = strBookBalance;
             }
@@ -3000,7 +3001,7 @@ public class MAPPAPI {
             if (!strProduct.equals("")) {
                 strTitle = strProduct;
                 strResponseText = "Your account balance is: <b>" + strBookBalance + "</b>" + "<br/>Available balance: <b>" + strAvailableBalance + "</b>";
-                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                enResponseStatus = SUCCESS;
                 strCharge = "YES";
             } else {
                 strTitle = "ERROR: Account Balance";
@@ -3022,6 +3023,148 @@ public class MAPPAPI {
             generateResponseMSGNode(doc, elData, theMAPPRequest, enResponseAction, enResponseStatus, strCharge, strTitle, enDataType);
 
             //Response
+            Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+        }
+
+        return theMAPPResponse;
+    }
+
+    public MAPPResponse accountBalanceEnquiryAll(MAPPRequest theMAPPRequest) {
+
+        MAPPResponse theMAPPResponse = null;
+
+        try {
+
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+
+            XPath configXPath = XPathFactory.newInstance().newXPath();
+
+            //Request
+            String strUsername = theMAPPRequest.getUsername();
+            String strPassword = theMAPPRequest.getPassword();
+            String strAppID = theMAPPRequest.getAppID();
+            String strTraceID = theMAPPRequest.getTraceID();
+
+            Node ndRequestMSG = theMAPPRequest.getMSG();
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            // Root element - MSG
+            Document doc = docBuilder.newDocument();
+
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
+
+            MAPPConstants.ResponseAction enResponseAction = CON;
+
+            //String strAccountNo = configXPath.evaluate("ACCOUNT_NO", ndRequestMSG).trim();
+
+            MAPPConstants.ResponseStatus enResponseStatus = ERROR;
+
+            String strProduct = "";
+            String strDate = "";
+            String strBookBalance = "";
+            String strAvailableBalance = "";
+
+            String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP, theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
+
+            String strTitle = "";
+            String strResponseText = "";
+
+            String strCharge = "NO";
+
+            Element elData = doc.createElement("DATA");
+            
+            String strMemberName = getUserFullName(theMAPPRequest, strUsername);
+//            CBSAPI.singleAccountBalanceEnquiry(getTraceID(theMAPPRequest), strTransactionID,"MSISDN", strUsername, strPassword,"APP_ID", strAppID, "ALL", strAccountNo);
+            HashMap<String, Object> hmRVal = CBSAPI.accountBalanceEnquiry(strTraceID,strTransactionID,"MSISDN",strUsername,strPassword,"APP_ID", strAppID, "ALL");
+
+            String strAccountBalanceEnquiryStatus = "";
+            HashMap<String, HashMap<String, String>> accounts = new HashMap<>();
+            try{
+                strAccountBalanceEnquiryStatus = (String) hmRVal.get("request_status");
+                accounts = (HashMap<String, HashMap<String, String>>) hmRVal.get("accounts");
+            }catch (Exception e){
+            }
+
+            switch (strAccountBalanceEnquiryStatus) {
+                case "SUCCESS": {
+
+                    try {
+
+                        StringBuilder accountsMSGBuilder = new StringBuilder();
+
+                        if(!accounts.isEmpty()){
+                            for (String account_no : accounts.keySet()) {
+                                HashMap<String, String> hmAccount = accounts.get(account_no);
+
+                                String strAccountName = hmAccount.get("account_name");
+                                String strAccountNumber =  hmAccount.get("account_number");
+                                String strAccountBalance =  hmAccount.get("account_balance");
+
+                                double dbAccountBalance = Utils.stringToDouble(strAccountBalance.replace("-", ""));
+
+                                if (dbAccountBalance <= 0) {
+                                    continue;
+                                }
+
+                                strAccountBalance = Utils.formatDouble(strAccountBalance, "#,##0.00");
+
+                                accountsMSGBuilder.append("<div style='text-align: left;'>Name: <b>" + strAccountName + "-" + strAccountNumber + "</b></div>");
+                                accountsMSGBuilder.append("<div style='text-align: left;'>Balance : <b style='color: #3C795B;'>KES " + strAccountBalance + "</b><div><br/>");
+                            }
+
+                            strTitle = "Account Balances";
+                            strResponseText = accountsMSGBuilder.toString();
+                            enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                            strCharge = "YES";
+                        }else{
+                            strTitle = "ERROR: Account Balance";
+                            strResponseText = "Dear member, your balance enquiry request has FAILED. No account found. Please contact the SACCO if the problem persists.";
+                        }
+
+                    }catch (Exception e){
+                        strTitle = "ERROR: Account Balance";
+                        strResponseText  = "Dear member, your balance enquiry request has FAILED. Please try again later. Kindly contact the SACCO if the problem persists.";
+                    }
+                    break;
+                }
+                case "INCORRECT_PIN": {
+                    strTitle = "ERROR: Account Balance";
+                    strResponseText  = "Dear member, your balance enquiry request has FAILED due to INCORRECT PIN. Please try again later. Kindly contact the SACCO if the problem persists.";
+                    break;
+                }
+                case "INVALID_ACCOUNT": {
+                    strTitle = "ERROR: Account Balance";
+                    strResponseText  = "Dear member, your balance enquiry request has FAILED due to INVALID ACCOUNT. Please try again later. Kindly contact the SACCO if the problem persists.";
+                    break;
+                }
+                case "INSUFFICIENT_BAL":{
+                    strTitle = "ERROR: Account Balance";
+                    strResponseText  = "Dear member, your balance enquiry request has FAILED due to INSUFFICIENT BALANCE. Please try again later. Kindly contact the SACCO if the problem persists.";
+                    break;
+                }
+                case "BLOCKED":{
+                    strTitle = "ERROR: Account Balance";
+                    strResponseText  = "Dear member, your balance enquiry request has FAILED. Please try again later. Kindly contact the SACCO if the problem persists.";
+                    break;
+                }
+                default:{
+                    strTitle = "ERROR: Account Balance";
+                    strResponseText  = "Dear member, your balance enquiry request has FAILED. Please try again later. Kindly contact the SACCO if the problem persists.";
+                }
+            }
+
+            elData.setTextContent(strResponseText);
+            generateResponseMSGNode(doc, elData, theMAPPRequest, enResponseAction, enResponseStatus, strCharge, strTitle, enDataType);
             Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
 
             theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
@@ -3064,10 +3207,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strLoanNo = configXPath.evaluate("LOAN_SERIAL_NO", ndRequestMSG).trim();
             String strCharge = "NO";
@@ -3090,7 +3233,7 @@ public class MAPPAPI {
             } else {
                 strTitle = "ERROR: Loan Balance";
                 strResponseText = "An error occurred. Please try again after a few minutes.";
-                enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                enResponseStatus = ERROR;
                 enResponseAction = MAPPConstants.ResponseAction.END;
 
             }
@@ -3117,6 +3260,96 @@ public class MAPPAPI {
         } catch (Exception e) {
             System.err.println(this.getClass().getSimpleName() + "." + new Object() {
             }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+        }
+
+        return theMAPPResponse;
+    }
+
+    public MAPPResponse loanBalanceEnquiryAll(MAPPRequest theMAPPRequest) {
+
+        MAPPResponse theMAPPResponse = null;
+
+        try {
+
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+            /*
+            <MESSAGES DATETIME='2014-08-25 22:19:53.0' VERSION='1.01'>
+                <LOGIN USERNAME='254721913958' PASSWORD=' 246c15fe971deb81c499281dbe86c1846bb2f336500efb88a8d4f99b66f52b39' IMEI='123456789012345'/>
+                 <MSG SESSION_ID='123121' ORG_ID='123' TYPE='MOBILE_BANKING' ACTION='LOAN_BALANCE' VERSION='1.01'>
+                      <LOAN_NO>123456</LOAN_NO>
+                </MSG>
+            </MESSAGES>
+            */
+           Node ndRequestMSG = theMAPPRequest.getMSG();
+
+//            System.out.println("\n\n" + XmlUtils.convertNodeToStr(ndRequestMSG) + "\n\n");
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            // Root element - MSG
+            Document doc = docBuilder.newDocument();
+
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
+
+            MAPPConstants.ResponseAction enResponseAction = CON;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
+
+            /// ------------------------------------------------------------------------
+                HashMap<String, HashMap<String, String>> loansInService = getLoansInService(theMAPPRequest);
+
+                String strTitle = "Loan Balances";
+                String strResponseText = "Loan Balances";
+
+                String strCharge = "NO";
+
+                Element elData = doc.createElement("DATA");
+                StringBuilder loansMSGBuilder = new StringBuilder();
+
+                if (loansInService != null && !loansInService.isEmpty()) {
+                    enDataType = MAPPConstants.ResponsesDataType.LIST;
+
+                    Element elLoans = doc.createElement("LOANS");
+                    elData.appendChild(elLoans);
+
+
+                    for (String loanTypeCode : loansInService.keySet()) {
+                        String strLoanNo = loansInService.get(loanTypeCode).get("id");
+                        String strLoanName = loansInService.get(loanTypeCode).get("type");
+                        String strLoanBalance = loansInService.get(loanTypeCode).get("balance");
+                        String strInterestAmount = loansInService.get(loanTypeCode).get("interest");
+
+                        loansMSGBuilder.append("<div style='text-align: left;'>Name: <b>" + strLoanName + "-" + strLoanNo + "</b></div>");
+                        loansMSGBuilder.append("<div style='text-align: left;'>Balance: <b>KES " + strLoanBalance + "</b><div>");
+                        loansMSGBuilder.append("<div style='text-align: left;'>Interest: <b style='color: #3C795B;'>KES " + strInterestAmount + "</b><div><br/>");
+                    }
+
+                    strResponseText = loansMSGBuilder.toString();
+
+                } else {
+                    strTitle = "Loan Balances";
+                    strResponseText = "Sorry! No Loans Found";
+                    elData.setTextContent("No Loans Found");
+                    enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+                }
+
+                elData.setTextContent(strResponseText);
+
+            /// ------------------------------------------------------------------------
+
+            generateResponseMSGNode(doc, elData, theMAPPRequest, enResponseAction, enResponseStatus, strCharge, strTitle, enDataType);
+
+            //Response
+            Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+
+        } catch (Exception e) {
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+
+            e.printStackTrace();
         }
 
         return theMAPPResponse;
@@ -3151,10 +3384,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strATMCardID =  configXPath.evaluate("ATM_CARD_ID", ndRequestMSG).trim();
             String strAction =  configXPath.evaluate("ACTION", ndRequestMSG).trim();
@@ -3170,8 +3403,8 @@ public class MAPPAPI {
             } else {
                 strTitle= "ERROR: Disable ATM Card";
                 strResponseText = "An error occurred. Please try again after a few minutes.";
-                enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
-                enResponseAction = MAPPConstants.ResponseAction.CON;
+                enResponseStatus = ERROR;
+                enResponseAction = CON;
 
             }
 
@@ -3232,10 +3465,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strLoanNo = configXPath.evaluate("LOAN_SERIAL_NO", ndRequestMSG).trim();
             String strLoanName = configXPath.evaluate("LOAN_TYPE_NAME", ndRequestMSG).trim();
@@ -3261,7 +3494,7 @@ public class MAPPAPI {
             } else {
                 strTitle = "ERROR: Check Loan Limit";
                 strResponseText = "An error occurred. Please try again after a few minutes.";
-                enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                enResponseStatus = ERROR;
                 enResponseAction = MAPPConstants.ResponseAction.END;
             }
 
@@ -3302,7 +3535,7 @@ public class MAPPAPI {
             MAPPResponse mrOTPVerificationMappResponse = null;
             MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if(otp.isEnabled()){
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -3334,7 +3567,7 @@ public class MAPPAPI {
 
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
 
                 MAPPConstants.ResponseAction enResponseAction = CON;
 
@@ -3351,12 +3584,12 @@ public class MAPPAPI {
                     strReceiverName = strRecipientMobileNumber;
                 }
 
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                MAPPConstants.ResponseStatus enResponseStatus = ERROR;
                 String strTitle = "";
                 String strResponseText = "";
                 String strCharge = "NO";
 
-                strRecipientMobileNumber = APIUtils.sanitizePhoneNumber(strRecipientMobileNumber);
+                strRecipientMobileNumber = sanitizePhoneNumber(strRecipientMobileNumber);
 
                 /*if (strRecipientMobileNumber.equalsIgnoreCase("INVALID_MOBILE_NUMBER")) {
                     strTitle = "ERROR: Withdrawal Failed";
@@ -3374,19 +3607,19 @@ public class MAPPAPI {
                     strTitle = "ERROR: Cash Withdrawal";
                     strResponseText = "Please enter a valid amount for withdrawal";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 }
                 else if (Double.parseDouble(strAmount) < dblWithdrawalMin) {
                     strTitle = "ERROR: Cash Withdrawal";
                     strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMin), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 }
                 else if (Double.parseDouble(strAmount) > dblWithdrawalMax) {
                     strTitle = "ERROR: Cash Withdrawal";
                     strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMax), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 }
                 else {
                     PESA pesa = new PESA();
@@ -3500,7 +3733,7 @@ public class MAPPAPI {
                                 strTitle = "Request for Withdrawal";
                                 strResponseText = "Your request to withdraw <b>KES " + strAmount + "</b> has been received successfully.<br/>Kindly wait shortly as it is being processed";
 
-                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseStatus = SUCCESS;
                                 enResponseAction = CON;
                             } else {
 
@@ -3617,7 +3850,7 @@ public class MAPPAPI {
             MAPPResponse mrOTPVerificationMappResponse = null;
             MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if(otp.isEnabled()){
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -3646,7 +3879,7 @@ public class MAPPAPI {
 
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
 
                 MAPPConstants.ResponseAction enResponseAction = CON;
 
@@ -3663,9 +3896,9 @@ public class MAPPAPI {
                     strReceiverName = strRecipientMobileNumber;
                 }
 
-                strRecipientMobileNumber = APIUtils.sanitizePhoneNumber(strRecipientMobileNumber);
+                strRecipientMobileNumber = sanitizePhoneNumber(strRecipientMobileNumber);
 
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                MAPPConstants.ResponseStatus enResponseStatus = ERROR;
                 String strTitle = "";
                 String strResponseText = "";
                 String strCharge = "NO";
@@ -3677,17 +3910,17 @@ public class MAPPAPI {
                     strTitle = "ERROR: Buy Airtime";
                     strResponseText = "Please enter a valid amount for airtime purchase";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if (Double.parseDouble(strAmount) < dblUtilityETopUpMin) {
                     strTitle = "ERROR: Buy Airtime";
                     strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblUtilityETopUpMin), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if(Double.parseDouble(strAmount) > dblUtilityETopUpMax){
                     strTitle = "ERROR: Buy Airtime";
                     strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblUtilityETopUpMax), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else {
                     PESA pesa = new PESA();
 
@@ -3799,7 +4032,7 @@ public class MAPPAPI {
                                 strTitle= "Request for Airtime Top-up";
                                 strResponseText = "Your request to top up airtime of <b>KES "+strAmount+"</b><br/>For :<b>+"+strUsername+"</b> has been received successfully.<br/>Kindly wait shortly as it is being processed";
 
-                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseStatus = SUCCESS;
                                 enResponseAction = CON;
                             } else {
 
@@ -3913,7 +4146,7 @@ public class MAPPAPI {
             MAPPResponse mrOTPVerificationMappResponse = null;
             MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if(otp.isEnabled()){
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -3942,7 +4175,7 @@ public class MAPPAPI {
 
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
 
                 MAPPConstants.ResponseAction enResponseAction = CON;
 
@@ -3955,7 +4188,7 @@ public class MAPPAPI {
 
                 BigDecimal bdAmount = BigDecimal.valueOf(Double.parseDouble(strAmount));
 
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                MAPPConstants.ResponseStatus enResponseStatus = ERROR;
                 String strTitle = "";
                 String strResponseText = "";
                 String strCharge = "NO";
@@ -3967,17 +4200,17 @@ public class MAPPAPI {
                     strTitle = "ERROR: Pay Bill";
                     strResponseText = "Please enter a valid amount for withdrawal";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if (Double.parseDouble(strAmount) < dblWithdrawalMin) {
                     strTitle = "ERROR: Pay Bill";
                     strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMin), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if(Double.parseDouble(strAmount) > dblWithdrawalMax ){
                     strTitle = "ERROR: Pay Bill";
                     strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMax), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else {
                     PESA pesa = new PESA();
 
@@ -4089,7 +4322,7 @@ public class MAPPAPI {
                                 strTitle= "Pay Bill Payment";
                                 strResponseText = "Your payment of <b>KES "+strAmount+"</b> has been received successfully.<br/>Kindly wait shortly as it is being processed";
 
-                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseStatus = SUCCESS;
                                 enResponseAction = CON;
                             } else {
                                 HashMap<String,String> hmRValResult = CBSAPI.mobileMoneyResult(pesa.getOriginatorID(), strTransactionID, PESAConstants.PESAResult.FAILED.getValue(),"Transaction FAILED to be queued on the database",
@@ -4196,13 +4429,18 @@ public class MAPPAPI {
         MAPPResponse theMAPPResponse = null;
 
         try {
+
+            if(!theMAPPRequest.getUsername().equals("254795438490")){
+                return null;
+            }
+
             System.out.println(this.getClass().getSimpleName() + "." + new Object() {}.getClass().getEnclosingMethod().getName() + "()");
             XPath configXPath = XPathFactory.newInstance().newXPath();
 
             MAPPResponse mrOTPVerificationMappResponse = null;
             MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if(otp.isEnabled()){
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -4231,7 +4469,7 @@ public class MAPPAPI {
 
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
 
                 MAPPConstants.ResponseAction enResponseAction = CON;
 
@@ -4245,7 +4483,7 @@ public class MAPPAPI {
 
                 BigDecimal bdAmount = BigDecimal.valueOf(Double.parseDouble(strAmount));
 
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                MAPPConstants.ResponseStatus enResponseStatus = ERROR;
                 String strTitle = "";
                 String strResponseText = "";
                 String strCharge = "NO";
@@ -4257,17 +4495,17 @@ public class MAPPAPI {
                     strTitle = "ERROR: Bank Transfer";
                     strResponseText = "Please enter a valid amount for withdrawal";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if (Double.parseDouble(strAmount) < dblWithdrawalMin) {
                     strTitle = "ERROR: Bank Transfer";
                     strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMin), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if(Double.parseDouble(strAmount) > dblWithdrawalMax){
                     strTitle = "ERROR: Bank Transfer";
                     strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMax), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else {
                     PESA pesa = new PESA();
 
@@ -4379,7 +4617,7 @@ public class MAPPAPI {
                                 strTitle= "Bank Transfer";
                                 strResponseText = "Your request to transfer <b>KES "+strAmount+"</b> to has been received successfully.<br/>Kindly wait shortly as it is being processed";
 
-                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseStatus = SUCCESS;
                                 enResponseAction = CON;
                             } else {
                                 HashMap<String,String> hmRValResult = CBSAPI.mobileMoneyResult(pesa.getOriginatorID(), strTransactionID, PESAConstants.PESAResult.FAILED.getValue(),"Transaction FAILED to be queued on the database",
@@ -4493,7 +4731,7 @@ public class MAPPAPI {
             MAPPResponse mrOTPVerificationMappResponse = null;
             MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if(otp.isEnabled()){
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -4522,7 +4760,7 @@ public class MAPPAPI {
 
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
 
                 MAPPConstants.ResponseAction enResponseAction = CON;
 
@@ -4565,7 +4803,7 @@ public class MAPPAPI {
 
                 BigDecimal bdAmount = BigDecimal.valueOf(Double.parseDouble(strAmount));
 
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                MAPPConstants.ResponseStatus enResponseStatus = ERROR;
                 String strTitle = "";
                 String strResponseText = "";
                 String strCharge = "NO";
@@ -4577,17 +4815,17 @@ public class MAPPAPI {
                     strTitle = "ERROR: Bank Transfer";
                     strResponseText = "Please enter a valid amount for withdrawal";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if (Double.parseDouble(strAmount) < dblWithdrawalMin) {
                     strTitle = "ERROR: Bank Transfer";
                     strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMin), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if(Double.parseDouble(strAmount) > dblWithdrawalMax){
                     strTitle = "ERROR: Bank Transfer";
                     strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMax), "#,##0.00");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else {
                     PESA pesa = new PESA();
 
@@ -4699,7 +4937,7 @@ public class MAPPAPI {
                                 strTitle= "Bank Transfer";
                                 strResponseText = "Your request to transfer <b>KES "+strAmount+"</b> to has been received successfully.<br/>Kindly wait shortly as it is being processed";
 
-                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseStatus = SUCCESS;
                                 enResponseAction = CON;
                             } else {
                                 HashMap<String,String> hmRValResult = CBSAPI.mobileMoneyResult(pesa.getOriginatorID(), strTransactionID, PESAConstants.PESAResult.FAILED.getValue(),"Transaction FAILED to be queued on the database",
@@ -4827,10 +5065,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strAccountNo =  configXPath.evaluate("AMOUNT/@ACCOUNT_NO", ndRequestMSG).trim();
             String strAmount =  configXPath.evaluate("AMOUNT", ndRequestMSG).trim();
@@ -4932,10 +5170,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strLoanId =  configXPath.evaluate("AMOUNT/@LOAN_SERIAL_NO", ndRequestMSG).trim();
             String strAmount =  configXPath.evaluate("AMOUNT", ndRequestMSG).trim();
@@ -4953,8 +5191,8 @@ public class MAPPAPI {
                     boolean blPesaStkPushStatus = false;
 
                     //Generate temp account to send to M-PESA
-                    String strTempAccount = APIUtils.getCurrentDate("yyMMddHHmmssSSS");
-                    strTempAccount = APIUtils.convertToBase36(strTempAccount);
+                    String strTempAccount = getCurrentDate("yyMMddHHmmssSSS");
+                    strTempAccount = convertToBase36(strTempAccount);
                     XTremeDBCache.store(strTempAccount, strLoanId);
 
                     PESAAPI thePESAAPI = new PESAAPI();
@@ -5030,7 +5268,7 @@ public class MAPPAPI {
                             strResponseText = "Your loan repayment request has been accepted successfully. Kindly wait as it is being processed";
                             strCharge = "YES";
                             enResponseAction = CON;
-                            enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                            enResponseStatus = SUCCESS;
                             break;
                         }
                         case "ERROR": {
@@ -5057,7 +5295,7 @@ public class MAPPAPI {
                         }
                         default: {
                             enResponseAction = MAPPConstants.ResponseAction.END;
-                            enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                            enResponseStatus = ERROR;
                             strTitle= "ERROR: Loan Repayment";
                             strResponseText = "An error occurred. Please try again after a few minutes.";
                         }
@@ -5106,7 +5344,7 @@ public class MAPPAPI {
             MAPPResponse mrOTPVerificationMappResponse = null;
             MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if(otp.isEnabled()){
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -5132,10 +5370,10 @@ public class MAPPAPI {
                   // Root element - MSG
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
 
                 MAPPConstants.ResponseAction enResponseAction = CON;
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
                 String strFromAccountNo = configXPath.evaluate("FROM_ACCOUNT_NO", ndRequestMSG).trim();
                 String strToAccountNo = configXPath.evaluate("TO_ACCOUNT_NO", ndRequestMSG).trim();
@@ -5191,7 +5429,7 @@ public class MAPPAPI {
                         strResponseText = "Your funds transfer request has been accepted successfully. Kindly wait as it is being processed";
                         strCharge = "YES";
                         enResponseAction = CON;
-                        enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                        enResponseStatus = SUCCESS;
                         break;
                     }
                     case "ERROR": {
@@ -5217,7 +5455,7 @@ public class MAPPAPI {
                     }
                     default: {
                         enResponseAction = MAPPConstants.ResponseAction.END;
-                        enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                        enResponseStatus = ERROR;
                         strTitle= "ERROR: Funds Transfer";
                         strResponseText = "An error occurred. Please try again after a few minutes.";
                     }
@@ -5287,7 +5525,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TABLE;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
@@ -5440,10 +5678,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strNewPassword =  configXPath.evaluate("NEW_PASSWORD", ndRequestMSG).trim();
 
@@ -5462,7 +5700,7 @@ public class MAPPAPI {
                     strResponseText = "Your password has been changed successfully. You will be redirected to the login page.";
                     strCharge = "YES";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                    enResponseStatus = SUCCESS;
                     break;
                 }
                 case "INVALID_NEW_PIN": {
@@ -5488,7 +5726,7 @@ public class MAPPAPI {
                 }
                 default: {
                     enResponseAction = MAPPConstants.ResponseAction.END;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                     strTitle= "ERROR: Change Password";
                     strResponseText = "An error occurred. Please try again after a few minutes.";
                 }
@@ -5546,17 +5784,17 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strClearText = configXPath.evaluate("CLEARTEXT", ndRequestMSG).trim();
             String strTimestamp = configXPath.evaluate("TIMESTAMP", ndRequestMSG).trim();
 
             String strEncryptedText = strClearText;
 
-            strEncryptedText = crypto.encrypt(APIUtils.ENCRYPTION_KEY + strTimestamp, strClearText);
+            strEncryptedText = crypto.encrypt(ENCRYPTION_KEY + strTimestamp, strClearText);
 
             String strTitle = strTitle = "Text Encrypted Successfully";
             String strResponseText = strResponseText = "Text was encrypted successfully.";
@@ -5608,17 +5846,17 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strEncrypted = configXPath.evaluate("ENCRYPTED", ndRequestMSG).trim();
             String strTimestamp = configXPath.evaluate("TIMESTAMP", ndRequestMSG).trim();
 
             String strDecryptedText = strEncrypted;
 
-            strDecryptedText = crypto.decrypt(APIUtils.ENCRYPTION_KEY + strTimestamp, strEncrypted);
+            strDecryptedText = crypto.decrypt(ENCRYPTION_KEY + strTimestamp, strEncrypted);
 
             String strTitle = strTitle = "Text Encrypted Successfully";
             String strResponseText = strResponseText = "Text was encrypted successfully.";
@@ -5708,10 +5946,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strProviderAccountCode =  configXPath.evaluate("PROVIDER_ACCOUNT_CODE", ndRequestMSG).trim();
             String strName =  configXPath.evaluate("ACCOUNT_NAME", ndRequestMSG).trim();
@@ -5788,7 +6026,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.OBJECT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strOption =  configXPath.evaluate("OPTION", ndRequestMSG).trim();
             String strAccount =  configXPath.evaluate("ACCOUNT", ndRequestMSG).trim();
@@ -5803,7 +6041,7 @@ public class MAPPAPI {
             } else if (strOption.equals("Member Number")) {
                 strSource = "MEMBER_NO";
             } else {
-                strAccount = APIUtils.sanitizePhoneNumber(strAccount);
+                strAccount = sanitizePhoneNumber(strAccount);
             }
 
             String strTitle = "Account Details";
@@ -5950,7 +6188,7 @@ public class MAPPAPI {
             MAPPResponse mrOTPVerificationMappResponse = null;
             MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus =MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if (otp.isEnabled()) {
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -5978,9 +6216,9 @@ public class MAPPAPI {
                 // Root element - MSG
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
                 MAPPConstants.ResponseAction enResponseAction = CON;
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
                 String strLoanID = configXPath.evaluate("LOAN_TYPE_ID", ndRequestMSG).trim();
                 String strAmount = configXPath.evaluate("AMOUNT", ndRequestMSG).trim();
@@ -6011,7 +6249,7 @@ public class MAPPAPI {
                 String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP,theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
                 String strRequestApplication = "MBANKING_SERVER";
                 String strSourceApplication = "MAPP";
-                String strTransactionDateTime = APIUtils.getCurrentDateTime();
+                String strTransactionDateTime = getCurrentDateTime();
 
                 HashMap<String,String> hmRVal = CBSAPI.loanApplication(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID, strTransactionID,
                         strLoanID, strAmount, strTransactionID, strRequestApplication, strSourceApplication, strTransactionDateTime);
@@ -6023,7 +6261,7 @@ public class MAPPAPI {
                         strResponseText = "Your loan application request was received successfully. You will receive an SMS once the loan has been approved.";
                         strCharge = "YES";
                         enResponseAction = CON;
-                        enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                        enResponseStatus = SUCCESS;
                         break;
                     }
                     case "INCORRECT_PIN": {
@@ -6042,7 +6280,7 @@ public class MAPPAPI {
                     }
                     default: {
                         enResponseAction = MAPPConstants.ResponseAction.END;
-                        enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                        enResponseStatus = ERROR;
                         strTitle = "ERROR: Apply Loan";
                         strResponseText = "An error occurred. Please try again after a few minutes.";
                     }
@@ -6110,7 +6348,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TABLE;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -6255,7 +6493,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TABLE;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -6405,7 +6643,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TABLE;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -6534,10 +6772,10 @@ public class MAPPAPI {
             // Root element - MSG
             Document doc = docBuilder.newDocument();
 
-            MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strLoanNo = configXPath.evaluate("LOAN_SERIAL_NO", ndRequestMSG).trim();
             String strStatus = configXPath.evaluate("STATUS", ndRequestMSG).trim();
@@ -6782,9 +7020,9 @@ public class MAPPAPI {
             XPath configXPath = XPathFactory.newInstance().newXPath();
 
             MAPPResponse mrOTPVerificationMappResponse = null;
-            ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
+            MAPPAPIConstants.OTP_VERIFICATION_STATUS otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS;
 
-            APIUtils.OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
+            OTP otp = checkOTPRequirement(theMAPPRequest, MAPPAPIConstants.OTP_CHECK_STAGE.VERIFICATION);
             if (otp.isEnabled()) {
                 mrOTPVerificationMappResponse = validateOTP(theMAPPRequest, MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL);
 
@@ -6792,11 +7030,11 @@ public class MAPPAPI {
                 String strStatus = configXPath.evaluate("@STATUS", mrOTPVerificationMappResponse.getMSG()).trim();
 
                 if (!strAction.equals("CON") || !strStatus.equals("SUCCESS")) {
-                    otpVerificationStatus = ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS.ERROR;
+                    otpVerificationStatus = MAPPAPIConstants.OTP_VERIFICATION_STATUS.ERROR;
                 }
             }
 
-            if (otpVerificationStatus == ke.skyworld.mbanking.mappapi.MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS) {
+            if (otpVerificationStatus == MAPPAPIConstants.OTP_VERIFICATION_STATUS.SUCCESS) {
 
                 String strUsername = theMAPPRequest.getUsername();
                 String strPassword = theMAPPRequest.getPassword();
@@ -6820,7 +7058,7 @@ public class MAPPAPI {
 
                 Document doc = docBuilder.newDocument();
 
-                MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.TEXT;
+                MAPPConstants.ResponsesDataType enDataType = TEXT;
 
                 MAPPConstants.ResponseAction enResponseAction = CON;
 
@@ -6840,7 +7078,7 @@ public class MAPPAPI {
                 String strAgentName = configXPath.evaluate("AGENT_NAME", ndRequestMSG).trim();
                 String strStoreNumber = configXPath.evaluate("STORE_NUMBER", ndRequestMSG).trim();
 
-                MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                MAPPConstants.ResponseStatus enResponseStatus = ERROR;
                 String strTitle = "";
                 String strResponseText = "";
                 String strCharge = "NO";
@@ -6854,24 +7092,24 @@ public class MAPPAPI {
                /* double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
                 double dblWithdrawalMax = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
 */
-                double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
-                double dblWithdrawalMax = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMaximum());
+                double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
+                double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMaximum());
 
                 if (!strAmount.matches("^[1-9][0-9]*$")) {
                     strTitle = "ERROR: Float Purchase";
                     strResponseText = "Please enter a valid amount for Float Purchase";
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if (Double.parseDouble(strAmount) < dblWithdrawalMin) {
                     strTitle = "ERROR: Float Purchase";
                     strResponseText = "MINIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMin), "#,###.##");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else if (Double.parseDouble(strAmount) > dblWithdrawalMax) {
                     strTitle = "ERROR: Float Purchase";
                     strResponseText = "MAXIMUM amount allowed is KES " + Utils.formatDouble(String.valueOf(dblWithdrawalMax), "#,###.##");
                     enResponseAction = CON;
-                    enResponseStatus = MAPPConstants.ResponseStatus.ERROR;
+                    enResponseStatus = ERROR;
                 } else {
 
                     //TODO: Confirm if a new Transaction Type should be created in CBD
@@ -6982,7 +7220,7 @@ public class MAPPAPI {
                                 strTitle = "Request for Withdrawal";
                                 strResponseText = "Your request to withdraw <b>KES " + strAmount + "</b> has been received successfully.<br/>Kindly wait shortly as it is being processed";
 
-                                enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+                                enResponseStatus = SUCCESS;
                                 enResponseAction = CON;
                             } else {
 
@@ -7211,8 +7449,8 @@ public class MAPPAPI {
             String strPaymentOption = configXPath.evaluate("PAYMENT_OPTION", ndRequestMSG).trim();
 
 
-            String strDepositMinimum = getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.DEPOSIT).getMinimum();
-            String strDepositMaximum = getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.DEPOSIT).getMinimum();
+            String strDepositMinimum = getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.DEPOSIT).getMinimum();
+            String strDepositMaximum = getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.DEPOSIT).getMinimum();
 
             double dblDepositMinimum = Double.parseDouble(strDepositMinimum);
             double dblDepositMaximum = Double.parseDouble(strDepositMaximum);
@@ -7393,7 +7631,7 @@ public class MAPPAPI {
             MAPPConstants.ResponsesDataType enDataType = MAPPConstants.ResponsesDataType.LIST;
 
             MAPPConstants.ResponseAction enResponseAction = CON;
-            MAPPConstants.ResponseStatus enResponseStatus = MAPPConstants.ResponseStatus.SUCCESS;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
 
             String strCharge = "NO";
 
@@ -7484,6 +7722,81 @@ public class MAPPAPI {
             System.out.println(writer.toString());
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    public static void MAPPRequestSimulation() throws Exception {
+        MAPPRequest theMAPPRequest = new MAPPRequest();
+        theMAPPRequest.setMessagesVersion("1.00");
+        theMAPPRequest.setMessagesDateTime("");
+        theMAPPRequest.setUsername("254714443500");
+        theMAPPRequest.setPassword("");
+        theMAPPRequest.setAppID(UUID.randomUUID().toString());
+        theMAPPRequest.setTraceID(UUID.randomUUID().toString());
+        theMAPPRequest.setServerID(0);
+        theMAPPRequest.setSessionID(0);
+        theMAPPRequest.setSequence(0);
+        theMAPPRequest.setProductID(0);
+        theMAPPRequest.setMAPPType(MAPPConstants.MAPPType.MOBILE_BANKING);
+        theMAPPRequest.setAction("ACCOUNT_BALANCE");
+        theMAPPRequest.setVersion("1.00");
+        theMAPPRequest.setDateCreated("");
+        theMAPPRequest.setIntegrityHash(UUID.randomUUID().toString());
+
+     /*   String strRequestBody = """
+                <MESSAGES>
+                <MSG ACTION="GET_MERCHANT_PRODUCTS" PARAMETERS_VERSION="1.20019" PRODUCT_ID="1" SEQ="30" SERVER_ID="100201" SESSION_ID="293516969" SESSION_KEY="f0733750-d88f-41f8-9047-a467b89610c5" TRACE_ID="81b7ebca-ffa0-469b-b867-8a10efdfdde6" TYPE="MOBILE_BANKING">
+                <LOAN_PRODUCT_ID>709</LOAN_PRODUCT_ID>
+                <MERCHANT_ID>0052117</MERCHANT_ID>
+                <PAGINATION PAGE="1" PAGE_COUNT="10"/>
+                </MSG>
+                </MESSAGES>
+                """;*/
+
+        String strRequestBody = "";
+
+        Document requestBody = parseXml(strRequestBody);
+        XPath configXPath = XPathFactory.newInstance().newXPath();
+        Node ndMSG = (Node) configXPath.evaluate("/MESSAGES/MSG", requestBody, XPathConstants.NODE);
+
+        theMAPPRequest.setMSG(ndMSG);
+
+        System.out.println("Calling mapprequestsimulation 1");
+        MAPPResponse theMAPPResponse = new MAPPAPIProcessor().processMAPPAPI(theMAPPRequest);
+        System.out.println("THE RESPONSE BODY: \n" + convertNodeToStr(theMAPPResponse.getMSG()));
+    }
+
+    public static Document parseXml(String xmlString) {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+
+        try {
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            JvmManager.gc(new Object[]{factory});
+            return builder.parse(new InputSource(new StringReader(xmlString)));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static String convertNodeToStr(Node node) {
+        return convertNodeToStr(node, true);
+    }
+
+    public static String convertNodeToStr(Node node, boolean omitXmlDeclaration) {
+        try {
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            transformer.setOutputProperty("indent", "yes");
+            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "5");
+            transformer.setOutputProperty("omit-xml-declaration", omitXmlDeclaration ? "yes" : "no");
+            StreamResult result = new StreamResult(new StringWriter());
+            DOMSource source = new DOMSource(node);
+            transformer.transform(source, result);
+            return result.getWriter().toString().replaceAll("\\n\\s*\\n", "\n");
+        } catch (TransformerException e) {
+            e.printStackTrace();
+            return "";
         }
     }
 }

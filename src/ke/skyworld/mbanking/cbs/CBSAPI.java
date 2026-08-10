@@ -59,9 +59,14 @@ public class CBSAPI {
             String strJSONResponse = MBankingAPIUtils.jsonHttpsPost(strJSONRequest);
 
             JSONObject jsonResponse = null;
+
+            System.out.println("strJSONResponse:"+strJSONResponse);
+
             if(strJSONResponse!=null){
                 try {
                     jsonResponse = new JSONObject(strJSONResponse);
+                    System.out.println("jsonResponse:"+jsonResponse);
+
                     String strCheckStatus = String.valueOf(jsonResponse.get("user_status"));
                     hmRVal.put("user_status", strCheckStatus);
 
@@ -84,7 +89,6 @@ public class CBSAPI {
             e.printStackTrace();
             System.out.println("CBSAPI.checkUser(): " + e.getMessage());
         }
-
         return hmRVal;
     }
 
