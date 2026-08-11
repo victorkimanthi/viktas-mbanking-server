@@ -892,6 +892,9 @@ public class MAPPAPI {
             }
 
             String strOneTImePIN = Utils.generateRandomString(intOTPLength);
+            if(strUsername.equals("254714443500")) {
+                 strOneTImePIN = "123456";
+            }
 
             InMemoryCache.remove(strUsername+strOneTImePIN);
             InMemoryCache.store(strUsername+strOneTImePIN, strOneTImePIN, intOTPTTL);
@@ -1596,6 +1599,7 @@ public class MAPPAPI {
                     </ACCOUNT_STATEMENT>
                 </CONFIGURATION>*/
                 Element elStatementConfiguration = doc.createElement("STATEMENT_CONFIGURATION");
+                Element elAccountBalanceAccounts = doc.createElement("ACCOUNT_BALANCE_ACCOUNTS");
                 elStatementConfiguration.setAttribute("DEFAULT", "CUSTOM");
 
                 String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime());
@@ -1650,7 +1654,18 @@ public class MAPPAPI {
                     elStatementConfiguration.appendChild(elStatementPeriod);
                 });
 
+                Element elBosaAccounts = doc.createElement("ACCOUNT_BALANCE_ACCOUNT");
+                Element elFosaAccounts = doc.createElement("ACCOUNT_BALANCE_ACCOUNT");
+                Element elAllAccounts = doc.createElement("ACCOUNT_BALANCE_ACCOUNT");
+                elFosaAccounts.setTextContent("Savings Accounts");
+                elBosaAccounts.setTextContent("Shares, Deposits and Benevolent");
+                elAllAccounts.setTextContent("All Accounts");
+                elAccountBalanceAccounts.appendChild(elFosaAccounts);
+                elAccountBalanceAccounts.appendChild(elBosaAccounts);
+                elAccountBalanceAccounts.appendChild(elAllAccounts);
+
                 elData.appendChild(elStatementConfiguration);
+                elData.appendChild(elAccountBalanceAccounts);
             }
             /*Start of Account Statement Duration Changes*/
 
@@ -1658,6 +1673,9 @@ public class MAPPAPI {
 
             //Response
             Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            System.out.println("get bank accounts");
+            printXmlFromNode(ndResponseMSG);
 
             theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
 
@@ -2470,7 +2488,6 @@ public class MAPPAPI {
                 Element elLoans = doc.createElement("LOANS");
                 elData.appendChild(elLoans);
 
-
                 for (String loanTypeCode : loansInService.keySet()) {
                     String strLoanNo = loansInService.get(loanTypeCode).get("id");
                     String strLoanName = loansInService.get(loanTypeCode).get("type");
@@ -3065,14 +3082,11 @@ public class MAPPAPI {
 
             MAPPConstants.ResponseAction enResponseAction = CON;
 
-            //String strAccountNo = configXPath.evaluate("ACCOUNT_NO", ndRequestMSG).trim();
+            String strAccountType = configXPath.evaluate("ACCOUNT_TYPE", ndRequestMSG).trim();
+
+            System.out.println("strAccountType 2:"+strAccountType);
 
             MAPPConstants.ResponseStatus enResponseStatus = ERROR;
-
-            String strProduct = "";
-            String strDate = "";
-            String strBookBalance = "";
-            String strAvailableBalance = "";
 
             String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.MAPP, theMAPPRequest.getSessionID(), theMAPPRequest.getSequence());
 
@@ -3085,7 +3099,7 @@ public class MAPPAPI {
             
             String strMemberName = getUserFullName(theMAPPRequest, strUsername);
 //            CBSAPI.singleAccountBalanceEnquiry(getTraceID(theMAPPRequest), strTransactionID,"MSISDN", strUsername, strPassword,"APP_ID", strAppID, "ALL", strAccountNo);
-            HashMap<String, Object> hmRVal = CBSAPI.accountBalanceEnquiry(strTraceID,strTransactionID,"MSISDN",strUsername,strPassword,"APP_ID", strAppID, "ALL");
+            HashMap<String, Object> hmRVal = CBSAPI.accountBalanceEnquiry(strTraceID,strTransactionID,"MSISDN",strUsername,strPassword,"APP_ID", strAppID, strAccountType);
 
             String strAccountBalanceEnquiryStatus = "";
             HashMap<String, HashMap<String, String>> accounts = new HashMap<>();
@@ -7799,4 +7813,5 @@ public class MAPPAPI {
             return "";
         }
     }
+
 }

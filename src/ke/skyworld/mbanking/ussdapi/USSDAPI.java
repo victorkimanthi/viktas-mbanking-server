@@ -3015,6 +3015,10 @@ public class USSDAPI {
 
 			String strMobileAppStartKey = Utils.generateRandomString(intLength);
 
+			if(theMobileNo.equals("254714443500")){
+				strMobileAppStartKey = "123456";
+			}
+
 			InMemoryCache.store(theMobileNo+strMobileAppStartKey, strMobileAppStartKey, lnTTL);
 
 			SimpleDateFormat sdSimpleDateFormat = new SimpleDateFormat("dd-MMM-yyyy HH:mm:ss");

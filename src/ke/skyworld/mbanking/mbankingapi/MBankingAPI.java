@@ -55,7 +55,7 @@ public class MBankingAPI {
             System.out.println();*/
 
             /// MAPP SIMULATION
-            MAPPAPI.MAPPRequestSimulation();
+//            MAPPAPI.MAPPRequestSimulation();
 
         } catch (Exception e){
             System.err.println("MBankingAPI.processOnStartup Error: " + e.getMessage());
