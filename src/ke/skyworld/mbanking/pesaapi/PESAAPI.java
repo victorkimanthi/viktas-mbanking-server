@@ -87,7 +87,7 @@ public class PESAAPI {
         }
     }
 
-    public static void validatePESA_IN(PESA thePESAIN, PESAINResponse thePESAINResponse){
+   /* public static void validatePESA_IN(PESA thePESAIN, PESAINResponse thePESAINResponse){
         String strResponse = "";
         try{
             thePESAINResponse.setCategory(thePESAIN.getCategory());
@@ -186,6 +186,84 @@ public class PESAAPI {
         }catch (Exception e){
             System.err.println("PESAAPI.validatePESA_IN() ERROR : " + e.getMessage());
             thePESAINResponse.setResponseCode(PESAConstants.PESAStatusCode.FORWARD_ERROR.getValue());
+            thePESAINResponse.setResponseName(PESAConstants.PESAResponse.ERROR.getValue());
+            thePESAINResponse.setResponseDescription("System Exception error validatePESA_IN(): " + e.getMessage() + ". Transaction NOT Accepted");
+        }
+    }*/
+
+
+    //todo: remove for prod
+    public static void validatePESA_IN(PESA thePESAIN, PESAINResponse thePESAINResponse) {
+        String strResponse = "";
+        try {
+
+            System.out.println("PESAAPI.validatePESA_IN()");
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getCategory() : " + thePESAIN.getCategory());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getCommand() : " + thePESAIN.getCommand());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getOriginatorID() : " + thePESAIN.getOriginatorID());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getBeneficiaryAccount() : " + thePESAIN.getBeneficiaryAccount());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getBeneficiaryIdentifier() : " + thePESAIN.getBeneficiaryIdentifier());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getBeneficiaryName() : " + thePESAIN.getBeneficiaryName());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getBeneficiaryOtherDetails() : " + thePESAIN.getBeneficiaryOtherDetails());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getCategory() : " + thePESAIN.getCategory());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getCommand() : " + thePESAIN.getCommand());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getOriginatorID() : " + thePESAIN.getOriginatorID());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getReceiverAccount() : " + thePESAIN.getReceiverAccount());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getReceiverIdentifier() : " + thePESAIN.getReceiverIdentifier());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getReceiverName() : " + thePESAIN.getReceiverName());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getReceiverOtherDetails() : " + thePESAIN.getReceiverOtherDetails());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getSourceIdentifier() : " + thePESAIN.getSourceIdentifier());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getSourceName() : " + thePESAIN.getSourceName());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getSourceOtherDetails() : " + thePESAIN.getSourceOtherDetails());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getSourceReference() : " + thePESAIN.getSourceReference());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getSourceType() : " + thePESAIN.getSourceType());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getTransactionAmount() : " + thePESAIN.getTransactionAmount());
+            System.out.println("PESAAPI.validatePESA_IN() - thePESAIN.getTransactionCurrency() : " + thePESAIN.getTransactionCurrency());
+            System.out.println("Pesa In XML " + thePESAIN.getPESAXMLData());
+
+
+            thePESAINResponse.setCategory("C2B_VALIDATE");
+
+            String strDestinationReference = UUID.randomUUID().toString().toUpperCase();
+            String strSourceType = thePESAIN.getSourceType();
+            String strSourceIdentifier = thePESAIN.getSourceIdentifier();
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+            Document doc = docBuilder.newDocument();
+
+            String strSourceOnCBS = "Mobile";
+
+            if (strSourceType.equals("NATIONAL_ID")) {
+                strSourceOnCBS = "ID";
+            } else if (strSourceType.equals("ACCOUNT")) {
+                strSourceOnCBS = "ACCOUNT";
+            }
+
+            Element elAccountElement = getValidate_PESA_IN_Element(strSourceIdentifier, strSourceOnCBS, doc);
+
+            if (elAccountElement != null) {
+                doc.appendChild(elAccountElement);
+                String strXMLData = fnTransformXMLDocument(doc);
+                thePESAINResponse.setOtherDetails(strXMLData);
+
+                thePESAINResponse.setResponseCode(304);
+                thePESAINResponse.setResponseName(PESAConstants.PESAResponse.SUCCESS.getValue());
+                thePESAINResponse.setResponseDescription("Account Found - Validation Accepted.");
+            } else {
+                thePESAINResponse.setOtherDetails("<OTHER_DETAILS/>");
+
+                thePESAINResponse.setResponseCode(104);
+                thePESAINResponse.setResponseName(PESAConstants.PESAResponse.FAILED.getValue());
+
+                thePESAINResponse.setResponseDescription("Account NOT Found - Validation NOT Accepted.");
+            }
+            thePESAINResponse.setBeneficiaryApplication("MBANKING_SERVER");
+            thePESAINResponse.setBeneficiaryReference(strDestinationReference);
+        } catch (Exception e) {
+            System.err.println("PESAAPI.validatePESA_IN() ERROR : " + e.getMessage());
+
+            thePESAINResponse.setResponseCode(103);
             thePESAINResponse.setResponseName(PESAConstants.PESAResponse.ERROR.getValue());
             thePESAINResponse.setResponseDescription("System Exception error validatePESA_IN(): " + e.getMessage() + ". Transaction NOT Accepted");
         }
@@ -965,6 +1043,105 @@ public class PESAAPI {
         }
     }
 
+   /* public static Element getValidate_PESA_IN_Element(String theAccount, String theSource, Document doc) {
+        try {
+            //todo - Implement Integration to CBS
+            //String strAccountNumberXML = Navision.getPort().getAccountTransferRecipientXML(theAccount, theSource);
+            String strAccountNumberXML = "<Account><AccountNo>5000000800000</AccountNo><AccountName>JAMES BOND</AccountName><Name>JAMES BOND</Name><MemberNo>0000800</MemberNo><PhoneNo>+254706405989</PhoneNo></Account>";
+            *//*
+            <Account>
+                <AccountNo>5000000800000</AccountNo>
+                <AccountName>JAMES BOND</AccountName>
+                <Name>JAMES BOND</Name>
+                <MemberNo>0000800</MemberNo>
+                <PhoneNo>+254706405989</PhoneNo>
+            </Account>
+             *//*
+
+            *//*
+            <OTHER_DETAILS>
+                <PESA_OTHER_DETAILS>
+                    <KYC_DETAILS>
+                        <RESPONSE>
+                            <KYC TYPE="ACCOUNT_NO">
+                                <IDENTIFIER>10101010101</IDENTIFIER>
+                                <ACCOUNT>10101010101</ACCOUNT>
+                                <NAME>Peter Jones</NAME>
+                                <OTHER_DETAILS>DETAILS</OTHER_DETAILS>
+                            </KYC>
+                        </RESPONSE>
+                    </KYC_DETAILS>
+                </PESA_OTHER_DETAILS>
+            </OTHER_DETAILS>
+             *//*
+
+
+            Element elPesaOtherDetails = null;
+
+            String strAccountNo = "";
+            String strAccountType = "";
+            String strAccountName = "";
+            String strAccountMemberNo = "";
+            String strPhoneNo = "";
+            String strAccountStatus = "NOT_FOUND";
+
+            if (!strAccountNumberXML.equals("")) {
+                InputSource source = new InputSource(new StringReader(strAccountNumberXML));
+                DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder builder = builderFactory.newDocumentBuilder();
+                Document xmlDocument = builder.parse(source);
+                XPath configXPath = XPathFactory.newInstance().newXPath();
+
+                strAccountNo = configXPath.evaluate("Account/AccountNo", xmlDocument, XPathConstants.STRING).toString();
+                strAccountType = configXPath.evaluate("Account/AccountName", xmlDocument, XPathConstants.STRING).toString();
+                strAccountName = configXPath.evaluate("Account/Name", xmlDocument, XPathConstants.STRING).toString();
+                strAccountMemberNo = configXPath.evaluate("Account/MemberNo", xmlDocument, XPathConstants.STRING).toString();
+                strPhoneNo = configXPath.evaluate("Account/PhoneNo", xmlDocument, XPathConstants.STRING).toString();
+                strAccountName = Utils.toTitleCase(strAccountName);
+                strAccountStatus = "FOUND";
+
+                String strBeneficiaryType = "";
+                if (theSource.equals("Mobile")) {
+                    strBeneficiaryType = "MSISDN";
+                } else if (theSource.equals("ID")) {
+                    strBeneficiaryType = "NATIONAL_ID";
+                }
+
+                elPesaOtherDetails = doc.createElement("PESA_OTHER_DETAILS");
+
+                Element elKYCDetails = doc.createElement("KYC_DETAILS");
+                elPesaOtherDetails.appendChild(elKYCDetails);
+
+                Element elKYCResponse = doc.createElement("RESPONSE");
+                elKYCDetails.appendChild(elKYCResponse);
+
+                Element elKYC = doc.createElement("KYC");
+                elKYC.setAttribute("TYPE", strBeneficiaryType);
+                elKYCResponse.appendChild(elKYC);
+
+                Element elIdentifier = doc.createElement("IDENTIFIER");
+                elIdentifier.setTextContent(theAccount);
+                elKYC.appendChild(elIdentifier);
+
+                Element elAccount = doc.createElement("ACCOUNT");
+                elAccount.setTextContent(strAccountNo);
+                elKYC.appendChild(elAccount);
+
+                Element elName = doc.createElement("NAME");
+                elName.setTextContent(strAccountName);
+                elKYC.appendChild(elName);
+
+                Element elOtherDetails = doc.createElement("OTHER_DETAILS");
+                elKYC.appendChild(elOtherDetails);
+            }
+            return elPesaOtherDetails;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }*/
+
+    //todo: remove for prod
     public static Element getValidate_PESA_IN_Element(String theAccount, String theSource, Document doc) {
         try {
             //todo - Implement Integration to CBS

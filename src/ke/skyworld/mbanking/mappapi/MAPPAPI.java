@@ -1660,6 +1660,9 @@ public class MAPPAPI {
                 elFosaAccounts.setTextContent("Savings Accounts");
                 elBosaAccounts.setTextContent("Shares, Deposits and Benevolent");
                 elAllAccounts.setTextContent("All Accounts");
+                elFosaAccounts.setAttribute("TYPE","FOSA");
+                elBosaAccounts.setAttribute("TYPE","BOSA");
+                elAllAccounts.setAttribute("TYPE","ALL");
                 elAccountBalanceAccounts.appendChild(elFosaAccounts);
                 elAccountBalanceAccounts.appendChild(elBosaAccounts);
                 elAccountBalanceAccounts.appendChild(elAllAccounts);
@@ -2501,6 +2504,15 @@ public class MAPPAPI {
                     elLoan.setAttribute("BALANCE", strLoanBalance);
                     elLoans.appendChild(elLoan);
                 }
+
+                Element elAllLoans = doc.createElement("LOAN");
+                elAllLoans.setTextContent("All Loans");
+               elAllLoans.setAttribute("SERIAL_NO", "");
+               elAllLoans.setAttribute("AMOUNT", "");
+               elAllLoans.setAttribute("CHANGE_AMOUNT", "");
+               elAllLoans.setAttribute("BALANCE", "");
+
+                elLoans.appendChild(elAllLoans);
             } else {
                 elData.setTextContent("No Loans Found");
                 enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
@@ -3120,7 +3132,7 @@ public class MAPPAPI {
                             for (String account_no : accounts.keySet()) {
                                 HashMap<String, String> hmAccount = accounts.get(account_no);
 
-                                String strAccountName = hmAccount.get("account_name");
+                                String strAccountLabel = hmAccount.get("account_label");
                                 String strAccountNumber =  hmAccount.get("account_number");
                                 String strAccountBalance =  hmAccount.get("account_balance");
 
@@ -3132,7 +3144,7 @@ public class MAPPAPI {
 
                                 strAccountBalance = Utils.formatDouble(strAccountBalance, "#,##0.00");
 
-                                accountsMSGBuilder.append("<div style='text-align: left;'>Name: <b>" + strAccountName + "-" + strAccountNumber + "</b></div>");
+                                accountsMSGBuilder.append("<div style='text-align: left;'>Name: <b>" + strAccountLabel + "-" + strAccountNumber + "</b></div>");
                                 accountsMSGBuilder.append("<div style='text-align: left;'>Balance : <b style='color: #3C795B;'>KES " + strAccountBalance + "</b><div><br/>");
                             }
 
@@ -4443,10 +4455,6 @@ public class MAPPAPI {
         MAPPResponse theMAPPResponse = null;
 
         try {
-
-            if(!theMAPPRequest.getUsername().equals("254795438490")){
-                return null;
-            }
 
             System.out.println(this.getClass().getSimpleName() + "." + new Object() {}.getClass().getEnclosingMethod().getName() + "()");
             XPath configXPath = XPathFactory.newInstance().newXPath();
@@ -7067,6 +7075,8 @@ public class MAPPAPI {
 
                 Node ndRequestMSG = theMAPPRequest.getMSG();
 
+                printXmlFromNode(ndRequestMSG);
+
                 DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
                 DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
 
@@ -7105,9 +7115,18 @@ public class MAPPAPI {
 
                /* double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
                 double dblWithdrawalMax = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
+
 */
-                double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
-                double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMaximum());
+            /*    System.out.println("ke.skyworld.mbanking.mappapi.CASH_WITHDRAWAL: "+getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
+                System.out.println("CASH_WITHDRAWAL: "+getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
+                System.out.println("MPESA_FLOAT_PURCHASE: "+getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
+                System.out.println("ke.skyworld.mbanking.mappapi.MPESA_FLOAT_PURCHASE: "+getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());*/
+
+              /*  double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
+                double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMaximum());*/
+
+                double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
+                double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
 
                 if (!strAmount.matches("^[1-9][0-9]*$")) {
                     strTitle = "ERROR: Float Purchase";
@@ -7229,10 +7248,10 @@ public class MAPPAPI {
 
                             if (PESAProcessor.sendPESA(pesa) > 0) {
                                 strAmount = Utils.formatAmount(strAmount);
-                                strMSG = "Dear member, your M-PESA Withdrawal request of KES " + strAmount + " to " + pesa.getBeneficiaryIdentifier() + " on " + strFormattedDateTime + " has been sent successfully.\nRef: " + strMAPPSessionID;
+                                strMSG = "Dear member, your M-PESA Float Purchase request of KES " + strAmount + " to " + pesa.getBeneficiaryIdentifier() + " on " + strFormattedDateTime + " has been sent successfully.\nRef: " + strMAPPSessionID;
                                 strCharge = "YES";
-                                strTitle = "Request for Withdrawal";
-                                strResponseText = "Your request to withdraw <b>KES " + strAmount + "</b> has been received successfully.<br/>Kindly wait shortly as it is being processed";
+                                strTitle = "Request for M-PESA Float Purchase";
+                                strResponseText = "Your request to do a float purchase of <b>KES " + strAmount + "</b> has been received successfully.<br/>Kindly wait shortly as it is being processed";
 
                                 enResponseStatus = SUCCESS;
                                 enResponseAction = CON;
