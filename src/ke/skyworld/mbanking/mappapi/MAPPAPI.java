@@ -59,6 +59,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseAction.CON;
+import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseAction.END;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.ERROR;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.SUCCESS;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponsesDataType.TEXT;
@@ -414,7 +415,7 @@ public class MAPPAPI {
                         strTitle = "Incorrect Password";
                         strDescription = "You have entered an incorrect password, please try again";
                     }
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     if (theOTPType == MAPPAPIConstants.OTP_TYPE.TRANSACTIONAL) {
                         enResponseAction = CON;
                     }
@@ -430,7 +431,7 @@ public class MAPPAPI {
                         String actionDuration = getPrettyDateTimeDifferenceRoundedUp(currentDate, Objects.requireNonNull(loginActionValidDate));
                         String strTryAgainIn = "Please try again in " + actionDuration;
                         strDescription = "Sorry, your account is SUSPENDED from using " + AppConstants.strSACCOName + " mobile banking services. " + strTryAgainIn;
-                        enResponseAction = MAPPConstants.ResponseAction.END;
+                        enResponseAction = END;
                         enResponseStatus = ERROR;
                     } else {
                         //Reset Login Auth Parameters
@@ -450,7 +451,7 @@ public class MAPPAPI {
                         } else {
                             strTitle = "Login Failed";
                             strDescription = "An Error occurred, please try again";
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             enResponseStatus = ERROR;
                         }
                     }
@@ -460,14 +461,14 @@ public class MAPPAPI {
                 case "LOCKED": {
                     strTitle = "Account Access Locked";
                     strDescription = "Sorry, your " + AppConstants.strSACCOName + " mobile banking account is LOCKED. Please contact us for assistance.";
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                     break;
                 }
                 case "BLOCKED": {
                     strTitle = "Account Blocked";
                     strDescription = "Your account is blocked, please visit your nearest SACCO branch for assistance.";
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                     break;
                 }
@@ -483,12 +484,12 @@ public class MAPPAPI {
                 case "ERROR": {
                     strTitle = "Login Failed";
                     strDescription = "An Error occurred, please try again";
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                     break;
                 }
                 default: {
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                 }
             }
@@ -649,7 +650,7 @@ public class MAPPAPI {
 
                 strDescription = "Sorry, your account is SUSPENDED from validating one time password. " + strTryAgainIn;*/
                     strDescription = "Sorry, your account has been SUSPENDED from validating one time password.";
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                 } else {
                     if (strActivationCode.equalsIgnoreCase(strStartKey)) {
@@ -674,7 +675,11 @@ public class MAPPAPI {
                                     strTitle = "OTP Validation Successful";
                                     strDescription = "Your OTP validation was successful";
                                 }
-                                enResponseAction = CON;
+
+                                if (theOTPType == MAPPAPIConstants.OTP_TYPE.ACTIVATION) {
+                                    enResponseAction = END;
+                                }
+
                                 enResponseStatus = SUCCESS;
                                 //Reset OTP details in Database
                                 HashMap<String,String> hmRValAuth = CBSAPI.setAuthSecurityParameters(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID,
@@ -738,7 +743,7 @@ public class MAPPAPI {
                             //Check action
                             switch (otpAction) {
                                 case "SUSPEND": {
-                                    enResponseAction = MAPPConstants.ResponseAction.END;
+                                    enResponseAction = END;
                                     int otpActionDuration = Integer.parseInt(currentAuthenticationAttemptsAction.get("DURATION"));
                                     String otpActionDurationUnit = currentAuthenticationAttemptsAction.get("UNIT");
                                     otpActionDuration = convertToSeconds(otpActionDuration, otpActionDurationUnit);
@@ -764,7 +769,7 @@ public class MAPPAPI {
                                 }
 
                                 case "LOCK": {
-                                    enResponseAction = MAPPConstants.ResponseAction.END;
+                                    enResponseAction = END;
                                     if (resetOTP.equals("YES")) {
                                         //remove OTP
                                         InMemoryCache.remove(strUsername);
@@ -1147,7 +1152,7 @@ public class MAPPAPI {
                     break;
                 }
                 default: {
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                     strTitle= "ERROR: Register New Member";
                     strResponseText = "An error occurred. Please try again after a few minutes.";
@@ -1425,7 +1430,7 @@ public class MAPPAPI {
                     break;
                 }
                 default: {
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                     strTitle= "ERROR";
                     strResponseText = "An error occurred. Please try again after a few minutes.";
@@ -2505,12 +2510,92 @@ public class MAPPAPI {
                     elLoans.appendChild(elLoan);
                 }
 
+                if(theMAPPRequest.getAction().equals("GET_LOANS")) {
+                    Element elAllLoans = doc.createElement("LOAN");
+                    elAllLoans.setTextContent("All Loans");
+                    elAllLoans.setAttribute("SERIAL_NO", "");
+                    elAllLoans.setAttribute("AMOUNT", "");
+                    elAllLoans.setAttribute("CHANGE_AMOUNT", "");
+                    elAllLoans.setAttribute("BALANCE", "");
+
+                    elLoans.appendChild(elAllLoans);
+                }
+            } else {
+                elData.setTextContent("No Loans Found");
+                enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
+            }
+
+
+            generateResponseMSGNode(doc, elData, theMAPPRequest, enResponseAction, enResponseStatus, strCharge, strTitle, enDataType);
+
+            //Response
+            Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+
+        } catch (Exception e) {
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return theMAPPResponse;
+    }
+
+    public MAPPResponse getMemberLoansForStatements(MAPPRequest theMAPPRequest) {
+
+        MAPPResponse theMAPPResponse = null;
+
+        try {
+
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+
+            HashMap<String, HashMap<String, String>> loansInService = getLoansInService(theMAPPRequest);
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            // Root element - MSG
+            Document doc = docBuilder.newDocument();
+
+            String strTitle = "Loans";
+
+            MAPPConstants.ResponsesDataType enDataType = TEXT;
+
+            MAPPConstants.ResponseAction enResponseAction = CON;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
+
+            String strCharge = "NO";
+
+            Element elData = doc.createElement("DATA");
+
+            if (loansInService != null && !loansInService.isEmpty()) {
+                enDataType = MAPPConstants.ResponsesDataType.LIST;
+
+                Element elLoans = doc.createElement("LOANS");
+                elData.appendChild(elLoans);
+
+                for (String loanTypeCode : loansInService.keySet()) {
+                    String strLoanNo = loansInService.get(loanTypeCode).get("id");
+                    String strLoanName = loansInService.get(loanTypeCode).get("type");
+                    String strLoanBalance = loansInService.get(loanTypeCode).get("balance");
+
+                    Element elLoan = doc.createElement("LOAN");
+                    elLoan.setTextContent(strLoanName);
+                    elLoan.setAttribute("SERIAL_NO", strLoanNo);
+                    elLoan.setAttribute("AMOUNT", strLoanBalance);
+                    elLoan.setAttribute("CHANGE_AMOUNT", "YES");
+                    elLoan.setAttribute("BALANCE", strLoanBalance);
+                    elLoans.appendChild(elLoan);
+                }
+
                 Element elAllLoans = doc.createElement("LOAN");
                 elAllLoans.setTextContent("All Loans");
-               elAllLoans.setAttribute("SERIAL_NO", "");
-               elAllLoans.setAttribute("AMOUNT", "");
-               elAllLoans.setAttribute("CHANGE_AMOUNT", "");
-               elAllLoans.setAttribute("BALANCE", "");
+                elAllLoans.setAttribute("SERIAL_NO", "");
+                elAllLoans.setAttribute("AMOUNT", "");
+                elAllLoans.setAttribute("CHANGE_AMOUNT", "");
+                elAllLoans.setAttribute("BALANCE", "");
 
                 elLoans.appendChild(elAllLoans);
             } else {
@@ -3260,7 +3345,7 @@ public class MAPPAPI {
                 strTitle = "ERROR: Loan Balance";
                 strResponseText = "An error occurred. Please try again after a few minutes.";
                 enResponseStatus = ERROR;
-                enResponseAction = MAPPConstants.ResponseAction.END;
+                enResponseAction = END;
 
             }
 
@@ -3521,7 +3606,7 @@ public class MAPPAPI {
                 strTitle = "ERROR: Check Loan Limit";
                 strResponseText = "An error occurred. Please try again after a few minutes.";
                 enResponseStatus = ERROR;
-                enResponseAction = MAPPConstants.ResponseAction.END;
+                enResponseAction = END;
             }
 
              /*
@@ -3812,7 +3897,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is inactive at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "TRANSACTION_EXISTS": {
@@ -3820,7 +3905,7 @@ public class MAPPAPI {
                             strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "BLOCKED": {
@@ -3828,7 +3913,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is blocked at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         default: {
@@ -4110,7 +4195,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is inactive at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "TRANSACTION_EXISTS":{
@@ -4118,7 +4203,7 @@ public class MAPPAPI {
                             strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "BLOCKED":{
@@ -4126,7 +4211,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is blocked at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         default:{
@@ -4399,7 +4484,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is inactive at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "TRANSACTION_EXISTS":{
@@ -4407,7 +4492,7 @@ public class MAPPAPI {
                             strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "BLOCKED":{
@@ -4415,7 +4500,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is blocked at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         default:{
@@ -4455,6 +4540,22 @@ public class MAPPAPI {
         MAPPResponse theMAPPResponse = null;
 
         try {
+
+            String username= theMAPPRequest.getUsername();
+
+            System.out.println("username:"+username);
+
+            List<String> userNameList = new ArrayList<>();
+            userNameList.add("254795438490");
+            userNameList.add("254712747943");
+            userNameList.add("254110876128");
+
+            if(!userNameList.contains(username)){
+                System.out.println("Bank Transfer is not available for this user:");
+               return theMAPPResponse;
+            }
+
+            System.out.println("Bank Transfer is available for this user:");
 
             System.out.println(this.getClass().getSimpleName() + "." + new Object() {}.getClass().getEnclosingMethod().getName() + "()");
             XPath configXPath = XPathFactory.newInstance().newXPath();
@@ -4615,6 +4716,7 @@ public class MAPPAPI {
                     pesa.setPesaDateCreated(strDate);
                     pesa.setLocalDateCreated(strDate);
 
+                    System.out.println("Calling BT here");
                     HashMap<String,String> hmRVal = CBSAPI.mobileMoneyWithdrawal(strTraceID, "MSISDN", strUsername, strPassword,"APP_ID", strAppID, strTransactionID,
                             pesa.getSenderType(), pesa.getSenderIdentifier(), pesa.getSenderAccount(), pesa.getSenderName(), pesa.getSenderOtherDetails(),
                             pesa.getReceiverType(), pesa.getReceiverIdentifier(), pesa.getReceiverAccount(), pesa.getReceiverName(), pesa.getReceiverOtherDetails(),
@@ -4690,7 +4792,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is inactive at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "TRANSACTION_EXISTS":{
@@ -4698,7 +4800,7 @@ public class MAPPAPI {
                             strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "BLOCKED":{
@@ -4706,7 +4808,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is blocked at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         default:{
@@ -5010,7 +5112,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is inactive at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "TRANSACTION_EXISTS":{
@@ -5018,7 +5120,7 @@ public class MAPPAPI {
                             strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "BLOCKED":{
@@ -5026,7 +5128,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is blocked at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         default:{
@@ -5062,7 +5164,7 @@ public class MAPPAPI {
         try {
             System.out.println(this.getClass().getSimpleName() + "." + new Object() {
             }.getClass().getEnclosingMethod().getName() + "()");
-            PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_B2C);
+            PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_C2B);
             String strSender = pesaParam.getSenderIdentifier();
             /*
             <MSG SESSION_ID='12234' ORG_ID='12' TYPE='MOBILE_BANKING' ACTION='DEPOSIT_MONEY' VERSION='1.01'>"+
@@ -5157,7 +5259,7 @@ public class MAPPAPI {
 
         try {
             System.out.println("loanRepayment");
-            PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_B2C);
+            PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_C2B);
             String strSender = pesaParam.getSenderIdentifier();
             /*
             <MESSAGES DATETIME='2014-08-25 22:19:53.0' VERSION='1.01'>
@@ -5311,12 +5413,12 @@ public class MAPPAPI {
                         case "ACC_NOT_FOUND": {
                             strTitle= "Account Not Found";
                             strResponseText = "Error, your account could not be found, please try again";
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
                             break;
                         }
                         default: {
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             enResponseStatus = ERROR;
                             strTitle= "ERROR: Loan Repayment";
                             strResponseText = "An error occurred. Please try again after a few minutes.";
@@ -5471,12 +5573,12 @@ public class MAPPAPI {
                     case "ACC_NOT_FOUND": {
                         strTitle= "Account Not Found";
                         strResponseText = "Error, your account could not be found, please try again";
-                        enResponseAction = MAPPConstants.ResponseAction.END;
+                        enResponseAction = END;
                         enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
                         break;
                     }
                     default: {
-                        enResponseAction = MAPPConstants.ResponseAction.END;
+                        enResponseAction = END;
                         enResponseStatus = ERROR;
                         strTitle= "ERROR: Funds Transfer";
                         strResponseText = "An error occurred. Please try again after a few minutes.";
@@ -5742,12 +5844,12 @@ public class MAPPAPI {
                 case "INVALID_ACCOUNT": {
                     strTitle= "Account Not Found";
                     strResponseText = "Error, your account could not be found, please try again";
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
                     break;
                 }
                 default: {
-                    enResponseAction = MAPPConstants.ResponseAction.END;
+                    enResponseAction = END;
                     enResponseStatus = ERROR;
                     strTitle= "ERROR: Change Password";
                     strResponseText = "An error occurred. Please try again after a few minutes.";
@@ -6301,7 +6403,7 @@ public class MAPPAPI {
                         break;
                     }
                     default: {
-                        enResponseAction = MAPPConstants.ResponseAction.END;
+                        enResponseAction = END;
                         enResponseStatus = ERROR;
                         strTitle = "ERROR: Apply Loan";
                         strResponseText = "An error occurred. Please try again after a few minutes.";
@@ -6898,6 +7000,10 @@ public class MAPPAPI {
                     strMAPPParamType += "/PAY_LOAN";
                     break;
                 }
+                case MPESA_FLOAT_PURCHASE: {
+                    strMAPPParamType += "/MPESA_FLOAT_PURCHASE";
+                    break;
+                }
             }
 
             String strMinimum = MBankingAPI.getValueFromLocalParams(MBankingConstants.ApplicationType.MAPP, strMAPPParamType + "/MIN_AMOUNT");
@@ -7107,26 +7213,8 @@ public class MAPPAPI {
                 String strResponseText = "";
                 String strCharge = "NO";
 
-           /*     strRecipientMobileNumber = APIUtils.sanitizePhoneNumber(strRecipientMobileNumber);
-
-                if (strRecipientMobileNumber.equals("INVALID_MOBILE_NUMBER")) {
-                    return null;
-                }*/
-
-               /* double dblWithdrawalMin = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
-                double dblWithdrawalMax = Double.parseDouble(getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
-
-*/
-            /*    System.out.println("ke.skyworld.mbanking.mappapi.CASH_WITHDRAWAL: "+getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
-                System.out.println("CASH_WITHDRAWAL: "+getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
-                System.out.println("MPESA_FLOAT_PURCHASE: "+getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
-                System.out.println("ke.skyworld.mbanking.mappapi.MPESA_FLOAT_PURCHASE: "+getParam(ke.skyworld.mbanking.mappapi.MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());*/
-
-              /*  double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
-                double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMaximum());*/
-
-                double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
-                double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
+                double dblWithdrawalMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMinimum());
+                double dblWithdrawalMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.MPESA_FLOAT_PURCHASE).getMaximum());
 
                 if (!strAmount.matches("^[1-9][0-9]*$")) {
                     strTitle = "ERROR: Float Purchase";
@@ -7306,7 +7394,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is inactive at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "TRANSACTION_EXISTS": {
@@ -7314,7 +7402,7 @@ public class MAPPAPI {
                             strResponseText = "An error occurred processing your request. Please try again after a few minutes.";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         case "BLOCKED": {
@@ -7322,7 +7410,7 @@ public class MAPPAPI {
                             strResponseText = "Your account is blocked at the moment, please contact us or visit your nearest branch to get assistance";
 
                             enResponseStatus = MAPPConstants.ResponseStatus.FAILED;
-                            enResponseAction = MAPPConstants.ResponseAction.END;
+                            enResponseAction = END;
                             break;
                         }
                         default: {
@@ -7452,7 +7540,7 @@ public class MAPPAPI {
             DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
 
             Document doc = docBuilder.newDocument();
-            PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_C2B);
+            PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_C2B_BUY_GOODS);
             String strSender = pesaParam.getSenderIdentifier();
 
             MAPPConstants.ResponsesDataType enDataType = TEXT;

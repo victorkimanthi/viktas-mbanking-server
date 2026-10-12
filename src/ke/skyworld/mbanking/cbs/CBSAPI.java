@@ -1458,6 +1458,8 @@ public class CBSAPI {
 
 			 */
 
+        System.out.println("Calling BT here 2");
+
         HashMap<String,String> hmRVal = new HashMap<>();
 
         hmRVal.put("transaction_status", "ERROR");
@@ -1525,6 +1527,8 @@ public class CBSAPI {
                     hmRVal.put("transaction_status", strTransactionStatus);
                     hmRVal.put("transaction_status_description", strTransactionStatusDescription);
                     hmRVal.put("transaction_date_time", strTransactionDateTime);
+
+                    System.out.println("Calling BT here 3");
 
                 }catch (Exception e){
                     System.out.println("CBSAPI.mobileMoneyWithdrawal(): Error converting String to JSON");

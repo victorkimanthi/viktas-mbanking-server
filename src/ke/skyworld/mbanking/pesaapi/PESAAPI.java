@@ -87,7 +87,7 @@ public class PESAAPI {
         }
     }
 
-   /* public static void validatePESA_IN(PESA thePESAIN, PESAINResponse thePESAINResponse){
+    public static void validatePESA_IN(PESA thePESAIN, PESAINResponse thePESAINResponse){
         String strResponse = "";
         try{
             thePESAINResponse.setCategory(thePESAIN.getCategory());
@@ -189,11 +189,11 @@ public class PESAAPI {
             thePESAINResponse.setResponseName(PESAConstants.PESAResponse.ERROR.getValue());
             thePESAINResponse.setResponseDescription("System Exception error validatePESA_IN(): " + e.getMessage() + ". Transaction NOT Accepted");
         }
-    }*/
+    }
 
 
     //todo: remove for prod
-    public static void validatePESA_IN(PESA thePESAIN, PESAINResponse thePESAINResponse) {
+   /* public static void validatePESA_IN(PESA thePESAIN, PESAINResponse thePESAINResponse) {
         String strResponse = "";
         try {
 
@@ -267,7 +267,7 @@ public class PESAAPI {
             thePESAINResponse.setResponseName(PESAConstants.PESAResponse.ERROR.getValue());
             thePESAINResponse.setResponseDescription("System Exception error validatePESA_IN(): " + e.getMessage() + ". Transaction NOT Accepted");
         }
-    }
+    }*/
 
     public static void confirmPESA_OUT(PESA thePESAOUT, RequestPESAResponse theRequestPESAResponse) {
         String strResponse = "";
@@ -1043,6 +1043,105 @@ public class PESAAPI {
         }
     }
 
+    public static Element getValidate_PESA_IN_Element(String theAccount, String theSource, Document doc) {
+        try {
+            //todo - Implement Integration to CBS
+            //String strAccountNumberXML = Navision.getPort().getAccountTransferRecipientXML(theAccount, theSource);
+            String strAccountNumberXML = "<Account><AccountNo>5000000800000</AccountNo><AccountName>JAMES BOND</AccountName><Name>JAMES BOND</Name><MemberNo>0000800</MemberNo><PhoneNo>+254706405989</PhoneNo></Account>";
+            /*
+            <Account>
+                <AccountNo>5000000800000</AccountNo>
+                <AccountName>JAMES BOND</AccountName>
+                <Name>JAMES BOND</Name>
+                <MemberNo>0000800</MemberNo>
+                <PhoneNo>+254706405989</PhoneNo>
+            </Account>
+             *//*
+
+            *//*
+            <OTHER_DETAILS>
+                <PESA_OTHER_DETAILS>
+                    <KYC_DETAILS>
+                        <RESPONSE>
+                            <KYC TYPE="ACCOUNT_NO">
+                                <IDENTIFIER>10101010101</IDENTIFIER>
+                                <ACCOUNT>10101010101</ACCOUNT>
+                                <NAME>Peter Jones</NAME>
+                                <OTHER_DETAILS>DETAILS</OTHER_DETAILS>
+                            </KYC>
+                        </RESPONSE>
+                    </KYC_DETAILS>
+                </PESA_OTHER_DETAILS>
+            </OTHER_DETAILS>
+             */
+
+
+            Element elPesaOtherDetails = null;
+
+            String strAccountNo = "";
+            String strAccountType = "";
+            String strAccountName = "";
+            String strAccountMemberNo = "";
+            String strPhoneNo = "";
+            String strAccountStatus = "NOT_FOUND";
+
+            if (!strAccountNumberXML.equals("")) {
+                InputSource source = new InputSource(new StringReader(strAccountNumberXML));
+                DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+                DocumentBuilder builder = builderFactory.newDocumentBuilder();
+                Document xmlDocument = builder.parse(source);
+                XPath configXPath = XPathFactory.newInstance().newXPath();
+
+                strAccountNo = configXPath.evaluate("Account/AccountNo", xmlDocument, XPathConstants.STRING).toString();
+                strAccountType = configXPath.evaluate("Account/AccountName", xmlDocument, XPathConstants.STRING).toString();
+                strAccountName = configXPath.evaluate("Account/Name", xmlDocument, XPathConstants.STRING).toString();
+                strAccountMemberNo = configXPath.evaluate("Account/MemberNo", xmlDocument, XPathConstants.STRING).toString();
+                strPhoneNo = configXPath.evaluate("Account/PhoneNo", xmlDocument, XPathConstants.STRING).toString();
+                strAccountName = Utils.toTitleCase(strAccountName);
+                strAccountStatus = "FOUND";
+
+                String strBeneficiaryType = "";
+                if (theSource.equals("Mobile")) {
+                    strBeneficiaryType = "MSISDN";
+                } else if (theSource.equals("ID")) {
+                    strBeneficiaryType = "NATIONAL_ID";
+                }
+
+                elPesaOtherDetails = doc.createElement("PESA_OTHER_DETAILS");
+
+                Element elKYCDetails = doc.createElement("KYC_DETAILS");
+                elPesaOtherDetails.appendChild(elKYCDetails);
+
+                Element elKYCResponse = doc.createElement("RESPONSE");
+                elKYCDetails.appendChild(elKYCResponse);
+
+                Element elKYC = doc.createElement("KYC");
+                elKYC.setAttribute("TYPE", strBeneficiaryType);
+                elKYCResponse.appendChild(elKYC);
+
+                Element elIdentifier = doc.createElement("IDENTIFIER");
+                elIdentifier.setTextContent(theAccount);
+                elKYC.appendChild(elIdentifier);
+
+                Element elAccount = doc.createElement("ACCOUNT");
+                elAccount.setTextContent(strAccountNo);
+                elKYC.appendChild(elAccount);
+
+                Element elName = doc.createElement("NAME");
+                elName.setTextContent(strAccountName);
+                elKYC.appendChild(elName);
+
+                Element elOtherDetails = doc.createElement("OTHER_DETAILS");
+                elKYC.appendChild(elOtherDetails);
+            }
+            return elPesaOtherDetails;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    //todo: remove for prod
    /* public static Element getValidate_PESA_IN_Element(String theAccount, String theSource, Document doc) {
         try {
             //todo - Implement Integration to CBS
@@ -1140,105 +1239,6 @@ public class PESAAPI {
         }
         return null;
     }*/
-
-    //todo: remove for prod
-    public static Element getValidate_PESA_IN_Element(String theAccount, String theSource, Document doc) {
-        try {
-            //todo - Implement Integration to CBS
-            //String strAccountNumberXML = Navision.getPort().getAccountTransferRecipientXML(theAccount, theSource);
-            String strAccountNumberXML = "<Account><AccountNo>5000000800000</AccountNo><AccountName>JAMES BOND</AccountName><Name>JAMES BOND</Name><MemberNo>0000800</MemberNo><PhoneNo>+254706405989</PhoneNo></Account>";
-            /*
-            <Account>
-                <AccountNo>5000000800000</AccountNo>
-                <AccountName>JAMES BOND</AccountName>
-                <Name>JAMES BOND</Name>
-                <MemberNo>0000800</MemberNo>
-                <PhoneNo>+254706405989</PhoneNo>
-            </Account>
-             */
-
-            /*
-            <OTHER_DETAILS>
-                <PESA_OTHER_DETAILS>
-                    <KYC_DETAILS>
-                        <RESPONSE>
-                            <KYC TYPE="ACCOUNT_NO">
-                                <IDENTIFIER>10101010101</IDENTIFIER>
-                                <ACCOUNT>10101010101</ACCOUNT>
-                                <NAME>Peter Jones</NAME>
-                                <OTHER_DETAILS>DETAILS</OTHER_DETAILS>
-                            </KYC>
-                        </RESPONSE>
-                    </KYC_DETAILS>
-                </PESA_OTHER_DETAILS>
-            </OTHER_DETAILS>
-             */
-
-
-            Element elPesaOtherDetails = null;
-
-            String strAccountNo = "";
-            String strAccountType = "";
-            String strAccountName = "";
-            String strAccountMemberNo = "";
-            String strPhoneNo = "";
-            String strAccountStatus = "NOT_FOUND";
-
-            if (!strAccountNumberXML.equals("")) {
-                InputSource source = new InputSource(new StringReader(strAccountNumberXML));
-                DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
-                DocumentBuilder builder = builderFactory.newDocumentBuilder();
-                Document xmlDocument = builder.parse(source);
-                XPath configXPath = XPathFactory.newInstance().newXPath();
-
-                strAccountNo = configXPath.evaluate("Account/AccountNo", xmlDocument, XPathConstants.STRING).toString();
-                strAccountType = configXPath.evaluate("Account/AccountName", xmlDocument, XPathConstants.STRING).toString();
-                strAccountName = configXPath.evaluate("Account/Name", xmlDocument, XPathConstants.STRING).toString();
-                strAccountMemberNo = configXPath.evaluate("Account/MemberNo", xmlDocument, XPathConstants.STRING).toString();
-                strPhoneNo = configXPath.evaluate("Account/PhoneNo", xmlDocument, XPathConstants.STRING).toString();
-                strAccountName = Utils.toTitleCase(strAccountName);
-                strAccountStatus = "FOUND";
-
-                String strBeneficiaryType = "";
-                if (theSource.equals("Mobile")) {
-                    strBeneficiaryType = "MSISDN";
-                } else if (theSource.equals("ID")) {
-                    strBeneficiaryType = "NATIONAL_ID";
-                }
-
-                elPesaOtherDetails = doc.createElement("PESA_OTHER_DETAILS");
-
-                Element elKYCDetails = doc.createElement("KYC_DETAILS");
-                elPesaOtherDetails.appendChild(elKYCDetails);
-
-                Element elKYCResponse = doc.createElement("RESPONSE");
-                elKYCDetails.appendChild(elKYCResponse);
-
-                Element elKYC = doc.createElement("KYC");
-                elKYC.setAttribute("TYPE", strBeneficiaryType);
-                elKYCResponse.appendChild(elKYC);
-
-                Element elIdentifier = doc.createElement("IDENTIFIER");
-                elIdentifier.setTextContent(theAccount);
-                elKYC.appendChild(elIdentifier);
-
-                Element elAccount = doc.createElement("ACCOUNT");
-                elAccount.setTextContent(strAccountNo);
-                elKYC.appendChild(elAccount);
-
-                Element elName = doc.createElement("NAME");
-                elName.setTextContent(strAccountName);
-                elKYC.appendChild(elName);
-
-                Element elOtherDetails = doc.createElement("OTHER_DETAILS");
-                elKYC.appendChild(elOtherDetails);
-            }
-            return elPesaOtherDetails;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
 
     public static Element getValidate_PESA_OUT_Element(String theAccount, String theSource, Document doc) {
         try {

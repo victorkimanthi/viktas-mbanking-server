@@ -97,10 +97,8 @@ public class MAPPAPIProcessor {
                     theMAPPResponse = theMAPPAPI.getLoanTypes(theMAPPRequest);
                     break;
                 }
-                case "GET_LOANS": {
-                    theMAPPResponse = theMAPPAPI.getMemberLoans(theMAPPRequest);
-                    break;
-                }
+                case "GET_LOANS":
+                case "GET_LOANS_FOR_STATEMENTS":
                 case "GET_LOANS_WITH_GUARANTORS": {
                     theMAPPResponse = theMAPPAPI.getMemberLoans(theMAPPRequest);
                     break;
