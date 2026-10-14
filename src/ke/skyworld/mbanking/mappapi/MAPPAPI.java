@@ -58,8 +58,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseAction.CON;
-import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseAction.END;
+import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseAction.*;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.ERROR;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.SUCCESS;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponsesDataType.TEXT;
@@ -242,6 +241,42 @@ public class MAPPAPI {
             String strLoginStatus = "ERROR";
             String strLoginAttemptMessage = "Sorry, this service is not available at the moment. Please try again later. If the problem persist kindly contact us for assistance.";
 
+            //2. CHECK IF MOBILE BANKING APP IS LATEST VERSION  -- start
+
+            Element elData = doc.createElement("DATA");
+
+            String strMAPPVersionFromUser = configXPath.evaluate("BUILD_NUMBER", ndRequestMSG).trim();
+
+//            String strCorrectMAPPVersion = XmlUtils.getTagValue(docSettingsXML, "/MBANKING_SERVICES/@MAPP_VERSION");
+            String strCorrectMAPPVersion = "1512350";
+
+            if (!strMAPPVersionFromUser.matches("\\d+")) {
+                strMAPPVersionFromUser = "0";
+            }
+
+            int intMAPPVersionFromUser;
+
+            try {
+                intMAPPVersionFromUser = Integer.parseInt(strMAPPVersionFromUser);
+            } catch (Exception e) {
+                intMAPPVersionFromUser = 0;
+            }
+
+            if (intMAPPVersionFromUser < Integer.parseInt(strCorrectMAPPVersion)) {
+
+                strTitle = AppConstants.strMobileBankingName + " Update";
+//                strDescription = "A new version of " + AppConstants.strMobileBankingName + " has been released. Please update on Play Store or App Store before proceeding or dial *633# to access mobile banking services.";
+                strDescription = "A new version of " + AppConstants.strMobileBankingName + " has been released. Please update on Play Store or App Store before proceeding  to access mobile banking services.";
+
+                Element elDescription = doc.createElement("LOGIN_RESPONSE_DESCRIPTION");
+                elDescription.setTextContent(strDescription);
+                elData.appendChild(elDescription);
+                generateResponseMSGNode(doc, elData, theMAPPRequest, UPGRADE, ERROR, "", strTitle, enDataType);
+                Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+                return setMAPPResponse(ndResponseMSG, theMAPPRequest);
+            }
+            //2. CHECK IF MOBILE BANKING APP IS LATEST VERSION  -- end
+
             HashMap<String,String> hmLoginRVal = CBSAPI.userLogin(getTraceID(theMAPPRequest), "MSISDN", strUsername, strPassword,"APP_ID", strAppID);
 
             if (!hmLoginRVal.isEmpty()) {
@@ -351,7 +386,7 @@ public class MAPPAPI {
                 }
             }
 
-            Element elData = doc.createElement("DATA");
+//            Element elData = doc.createElement("DATA");
 
             boolean blLoginSuccessful = false;
 
@@ -4541,7 +4576,7 @@ public class MAPPAPI {
 
         try {
 
-            String username= theMAPPRequest.getUsername();
+           /* String username= theMAPPRequest.getUsername();
 
             System.out.println("username:"+username);
 
@@ -4555,7 +4590,7 @@ public class MAPPAPI {
                return theMAPPResponse;
             }
 
-            System.out.println("Bank Transfer is available for this user:");
+            System.out.println("Bank Transfer is available for this user:");*/
 
             System.out.println(this.getClass().getSimpleName() + "." + new Object() {}.getClass().getEnclosingMethod().getName() + "()");
             XPath configXPath = XPathFactory.newInstance().newXPath();
