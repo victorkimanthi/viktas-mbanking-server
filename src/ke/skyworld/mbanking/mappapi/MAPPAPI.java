@@ -241,14 +241,15 @@ public class MAPPAPI {
             String strLoginStatus = "ERROR";
             String strLoginAttemptMessage = "Sorry, this service is not available at the moment. Please try again later. If the problem persist kindly contact us for assistance.";
 
-            //2. CHECK IF MOBILE BANKING APP IS LATEST VERSION  -- start
 
             Element elData = doc.createElement("DATA");
+
+            //2. CHECK IF MOBILE BANKING APP IS LATEST VERSION  -- start
 
             String strMAPPVersionFromUser = configXPath.evaluate("BUILD_NUMBER", ndRequestMSG).trim();
 
 //            String strCorrectMAPPVersion = XmlUtils.getTagValue(docSettingsXML, "/MBANKING_SERVICES/@MAPP_VERSION");
-            String strCorrectMAPPVersion = "1512350";
+            String strCorrectMAPPVersion = "1512352";
 
             if (!strMAPPVersionFromUser.matches("\\d+")) {
                 strMAPPVersionFromUser = "0";
