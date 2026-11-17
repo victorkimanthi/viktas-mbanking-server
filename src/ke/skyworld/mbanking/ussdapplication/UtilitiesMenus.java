@@ -113,7 +113,8 @@ public interface UtilitiesMenus {
                     theUSSDResponse = theAppMenus.displayMenu_Etopup(theUSSDRequest, theParam);
                 } else if (strUTILITIES_MENU.equals("MPESA_FLOAT_PURCHASE")) {
                     theUSSDResponse = theAppMenus.displayMenu_MPESA_Float_Purchase(theUSSDRequest, theParam);
-                } else if (!strUTILITIES_MENU.isEmpty()) {
+                }
+                else if (!strUTILITIES_MENU.isEmpty()) {
                     theUSSDResponse = theAppMenus.displayMenu_PayBill(theUSSDRequest, theParam);
                 } else {
                     String strHeader = "Utilities\n{Select a valid menu}";
