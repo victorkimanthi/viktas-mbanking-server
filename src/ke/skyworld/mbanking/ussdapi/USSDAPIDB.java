@@ -264,4 +264,68 @@ public class USSDAPIDB {
 
 		return rVal;
 	}
+
+	/**
+	 * Checks whether the given paybill is registered as a bank paybill for MPESA.
+	 */
+	public static boolean isBankPaybill(String paybill) {
+		boolean exists = false;
+		NamedParameterStatement p = null;
+		ResultSet rs = null;
+		String strSQL = null;
+		try {
+			strSQL = "SELECT * FROM bank_paybill_codes WHERE paybill = :paybill AND operator = 'MPESA' LIMIT 1;";
+			p = new NamedParameterStatement(MBankingDB.getConnection(), strSQL);
+			p.setString("paybill", paybill);
+			rs = p.executeQuery();
+			if (rs.next()) {
+				exists = true;
+			}
+		} catch (Exception e) {
+			System.err.println("Error checking bank paybill [" + paybill + "]: " + e.getMessage());
+		} finally {
+			if (rs != null) {
+				try {
+					rs.close();
+				} catch (Exception e) {
+					System.err.println("Error closing ResultSet: " + e.getMessage());
+				}
+				rs = null;
+			}
+			if (p != null) {
+				try {
+					p.close();
+				} catch (Exception e) {
+					System.err.println("Error closing statement: " + e.getMessage());
+				}
+				p = null;
+			}
+			strSQL = null;
+		}
+		return exists;
+	}
+
+	public static String getDerivedRegisterClientParameters(int parametersId) {
+		String xml = null;
+		NamedParameterStatement p = null;
+		ResultSet rs = null;
+
+		try {
+			String strSQL = "SELECT client_xml_parameters FROM client_parameters "
+					+ "WHERE parameters_id = :parameters_id;";
+			p = new NamedParameterStatement(MBankingDB.getConnection(), strSQL);
+			p.setInt("parameters_id", parametersId);
+			rs = p.executeQuery();
+
+			if (rs.next()) {
+				xml = rs.getString("client_xml_parameters");
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			try { if (rs != null) rs.close(); } catch (Exception ignored) {}
+			try { if (p != null) p.close(); } catch (Exception ignored) {}
+		}
+		return xml;
+	}
 }

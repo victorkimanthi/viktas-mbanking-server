@@ -1,5 +1,9 @@
 package ke.skyworld.mbanking.ussdapplication;
 
+import ke.co.skyworld.smp.query_manager.beans.FlexicoreHashMap;
+import ke.co.skyworld.smp.query_manager.beans.TransactionWrapper;
+import ke.co.skyworld.smp.query_manager.util.SystemParameters;
+import ke.co.skyworld.smp.utility_items.data_formatting.XmlUtils;
 import ke.skyworld.lib.mbanking.core.MBankingConstants;
 import ke.skyworld.lib.mbanking.pesa.PESAConstants;
 import ke.skyworld.lib.mbanking.pesa.PESALocalParameters;
@@ -7,12 +11,15 @@ import ke.skyworld.lib.mbanking.ussd.USSDConstants;
 import ke.skyworld.lib.mbanking.ussd.USSDRequest;
 import ke.skyworld.lib.mbanking.ussd.USSDResponse;
 import ke.skyworld.lib.mbanking.ussd.USSDResponseSELECTOption;
+import ke.skyworld.lib.mbanking.utils.InMemoryCache;
 import ke.skyworld.lib.mbanking.utils.Utils;
+import ke.skyworld.mbanking.cbs.CBSAPI;
 import ke.skyworld.mbanking.ussdapi.USSDAPIConstants;
 import ke.skyworld.mbanking.ussdapi.APIUtils;
 import ke.skyworld.mbanking.ussdapi.USSDAPI;
 import ke.skyworld.sp.manager.SPManagerConstants;
 import ke.skyworld.sp.manager.SPManager;
+import org.w3c.dom.Document;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,7 +38,7 @@ public interface UtilitiesMenus {
 
             LinkedList<APIUtils.ServiceProviderAccount> llSPAAccounts = APIUtils.getSPAccounts(SPManagerConstants.ProviderAccountType.UTILITY_CODE);
             USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, theHeader);
-            int intOptionMenu = 0;
+            int intOptionMenu = 1;
 
             /*if(strMobileNumber.equals("254713000249") || strMobileNumber.equals("254712747943")) {
                 intOptionMenu = intOptionMenu+1;
@@ -45,8 +52,12 @@ public interface UtilitiesMenus {
                 USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "BUY_AIRTIME", "1: Buy Airtime");
             }*/
 
-            intOptionMenu = intOptionMenu+1;
+            System.out.println("Utilities Menu 1");
+//            intOptionMenu = intOptionMenu+1;
             USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "MPESA_FLOAT_PURCHASE", "1: M-PESA Float Purchase");
+            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu+1), "PAYBILL_PAYMENT", "2: PayBill Payment");
+            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu+1), "TILL_PAYMENT", "3: Till Payment");
+            System.out.println("Utilities Menu 2");
 
             //intOptionMenu = intOptionMenu+1;
             //USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "BUY_AIRTIME", "2: Buy Airtime");
@@ -113,6 +124,9 @@ public interface UtilitiesMenus {
                     theUSSDResponse = theAppMenus.displayMenu_Etopup(theUSSDRequest, theParam);
                 } else if (strUTILITIES_MENU.equals("MPESA_FLOAT_PURCHASE")) {
                     theUSSDResponse = theAppMenus.displayMenu_MPESA_Float_Purchase(theUSSDRequest, theParam);
+                }
+                else if (strUTILITIES_MENU.equals("PAYBILL_PAYMENT") || strUTILITIES_MENU.equals("TILL_PAYMENT")) {
+                    theUSSDResponse = theAppMenus.displayMenu_PayBill_Payment(theUSSDRequest, theParam);
                 }
                 else if (!strUTILITIES_MENU.isEmpty()) {
                     theUSSDResponse = theAppMenus.displayMenu_PayBill(theUSSDRequest, theParam);
@@ -894,6 +908,493 @@ public interface UtilitiesMenus {
             System.err.println("theAppMenus.displayMenu_MPESA_Float_Purchase() ERROR : " + e.getMessage());
         }
         finally{
+            theAppMenus = null;
+        }
+        return theUSSDResponse;
+    }
+
+    default USSDResponse displayMenu_PayBill_Payment(USSDRequest theUSSDRequest, String theParam) {
+        USSDResponse theUSSDResponse = null;
+        final USSDAPI theUSSDAPI = new USSDAPI();
+        AppMenus theAppMenus = new AppMenus();
+        /*String strUtilityProviderAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.UTILITIES_MENU.name());
+
+        HashMap<String, String> hmUtilityAccountDetails = Utils.toHashMap(strUtilityProviderAccountDetails);
+
+        String strToSPProviderAccountCode = hmUtilityAccountDetails.get("code");
+        String strToAccountIdentifier = hmUtilityAccountDetails.get("identifier");
+        String strToAccountType = hmUtilityAccountDetails.get("type");
+        String strToAccountNaming = hmUtilityAccountDetails.get("type_tag");
+        String strToBillerName = hmUtilityAccountDetails.get("long_tag");*/
+
+        String strHeader;
+
+        String strUTILITIES_MENU = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.UTILITIES_MENU.name());
+        if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+            strHeader = "PayBill";
+        } else {
+            strHeader = "Buy Goods & Services";
+        }
+
+        try {
+            switch (theParam) {
+                case "MENU": {
+
+                    String strFullHeader = strHeader + "\nSelect account\n";
+                    theUSSDResponse = GeneralMenus.displayMenu_BankAccounts(theUSSDRequest, theParam, strFullHeader, USSDAPIConstants.AccountType.WITHDRAWABLE, AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT);
+                    break;
+                }
+                case "FROM_ACCOUNT": {
+
+                    String strFromAccount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT.name());
+
+                    if (strFromAccount.length() > 0){
+                        //TODO: UNCOMMENT IN PRODUCTION
+                       /* MemberRegisterResponse registerResponse = RegisterProcessor.getMemberRegister(RegisterConstants.MemberRegisterIdentifierType.ACCOUNT_NO, strFromAccount,
+                                RegisterConstants.MemberRegisterType.BLACKLIST);
+
+                        if (registerResponse.getResponseType().equals(AppConstants.RegisterViewResponse.VALID.getValue())){
+                            String strResponse = strHeader + "\nSorry, an error occurred while processing your request.\n\nERR_ACCBL300";
+
+                            ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption = new ArrayList<USSDResponseSELECTOption>();
+                            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strResponse);
+                            theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithHomeAndExit(theUSSDRequest, AppConstants.USSDDataType.OPEN_PAY_BILL_END, "NO", theArrayListUSSDSelectOption);
+
+                        } else {*/
+
+                        String strResponse;
+
+                        if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+                            strResponse = strHeader + "\nEnter PayBill:";
+                        } else {
+                            strResponse = strHeader + "\nEnter Till Number:";
+                        }
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE, USSDConstants.USSDInputType.STRING, "NO");
+
+                            /*String strResponse = strHeader + "\nEnter amount:";
+                            theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.PAY_BILL_AMOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                            */
+
+                        //}      }else{
+                    }else{
+                        String strFullHeader = strHeader + "\n{Select a valid account}\n";
+                        theUSSDResponse = GeneralMenus.displayMenu_BankAccounts(theUSSDRequest, theParam, strFullHeader, USSDAPIConstants.AccountType.FOSA, AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT);
+                    }
+                    break;
+                }
+                case "SHORTCODE": {
+                    String strShortCode = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE.name());
+
+                    String theService = "";
+
+                    if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+                        theService = "PAYBILL";
+                    } else {
+                        theService = "TILL_PAYMENT";
+                    }
+
+                    FlexicoreHashMap shortcodeDetails = USSDAPI.safaricomHakikisha(theService, strShortCode);
+
+                    System.out.println("shortcodeDetails = " + shortcodeDetails);
+
+                    if (shortcodeDetails != null) {
+                        String name = shortcodeDetails.getStringValue("name");
+                        String paymentType = shortcodeDetails.getStringValue("payment_type");
+
+                        InMemoryCache.store(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT", shortcodeDetails, 300);
+
+                        System.out.println("here 1"+theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+
+                        String strResponse = strHeader+"\nPay To";
+                        theUSSDResponse = getProceedConfirmation(theUSSDRequest, strResponse);
+                    } else {
+                        String strResponse;
+
+                        if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+                            strResponse = strHeader + "\n{PayBill not found}\nEnter PayBill:";
+                        } else {
+                            strResponse = strHeader + "\n{Till Number not found}\nEnter Till Number:";
+                        }
+
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE, USSDConstants.USSDInputType.STRING, "NO");
+                    }
+
+                    break;
+                }
+                case "HAKIKISHA": {
+                    String strProceed = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_HAKIKISHA.name());
+                    switch (strProceed) {
+                        case "YES": {
+                            //TILL_PAYMENT
+
+                            if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+                                String strResponse = strHeader + "\nEnter Account Number:";
+                                theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE_ACCOUNT, USSDConstants.USSDInputType.STRING, "NO");
+
+                            } else {
+                                String strResponse = strHeader + "\nEnter Amount:";
+                                theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                            }
+                            break;
+                        }
+                        case "TRY_AGAIN": {
+                            String strResponse;
+
+                            if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+                                strResponse = strHeader + "\nEnter PayBill:";
+                            } else {
+                                strResponse = strHeader + "\nEnter Till Number:";
+                            }
+
+                            theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE, USSDConstants.USSDInputType.STRING, "NO");
+                            break;
+                        }
+                        default: {
+                            String strResponse = "PayBill\n{Select a valid menu}\nPay To";
+                            theUSSDResponse = getProceedConfirmation(theUSSDRequest, strResponse);
+                            break;
+                        }
+                    }
+
+                    break;
+                }
+
+                case "SHORTCODE_ACCOUNT": {
+                    String strShortcodeAccount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE_ACCOUNT.name());
+
+                    if (!strShortcodeAccount.isEmpty()) {
+                        String strResponse = strHeader + "\nEnter Amount:";
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                    } else {
+                        String strResponse = strHeader + "\n{Invalid Input}\nEnter Account Number:";
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE_ACCOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                    }
+
+                    break;
+                }
+
+                case "AMOUNT": {
+                    String strAmount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT.name());
+
+                    if (strAmount.matches("^[1-9][0-9]*$")) {
+                        String strResponse = strHeader + "\nEnter your PIN:";
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_PIN, USSDConstants.USSDInputType.STRING, "NO");
+
+//                        String strFundsTransferXML = SystemParameters.getParameter(AppConstants.strSettingParamName);
+//                        Document document = XmlUtils.parseXml(strFundsTransferXML);
+
+                        String strPayBillMinimum = theUSSDAPI.getAmountLimitCustomParameters(MBankingConstants.ApplicationType.USSD, USSDAPIConstants.USSD_PARAM_TYPE.PAY_BILL).getMinimum();
+                        String strPayBillMaximum = theUSSDAPI.getAmountLimitCustomParameters(MBankingConstants.ApplicationType.USSD, USSDAPIConstants.USSD_PARAM_TYPE.PAY_BILL).getMaximum();
+
+                        double dblPayBillMinimum = Double.parseDouble(strPayBillMinimum);
+                        double dblPayBillMaximum = Double.parseDouble(strPayBillMaximum);
+
+                        String strAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT.name());
+                        HashMap<String, String> hmAccountDetails = Utils.toHashMap(strAccountDetails);
+
+                        String strSourceAccountNo = hmAccountDetails.get("ac_no");
+                        String strSourceAccountName = hmAccountDetails.get("ac_name");
+                        String strSourceAccountLabel = hmAccountDetails.get("ac_label");
+                        String strSourceAccountAvailableBalance = hmAccountDetails.get("ac_bal");
+
+                        /*String strSourceAccountNo = hmAccountDetails.get("number");
+                        String strSourceAccountName = hmAccountDetails.get("name");
+                        String strSourceAccountTypeName = hmAccountDetails.get("type_name");
+                        String strSourceAccountLabel = hmAccountDetails.get("label");
+                        String strSourceAccountAvailableBalance = hmAccountDetails.get("avail_bal");*/
+
+                        double dblAvailableBalance = 0;
+                        try {
+                            dblAvailableBalance = Double.parseDouble(strSourceAccountAvailableBalance);
+                        } catch (Exception e) {
+                        }
+
+                        double dblAmountEntered = Double.parseDouble(strAmount);
+
+                        Object theSelectedLoansObj = InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+                        FlexicoreHashMap thePaybillDetails = new FlexicoreHashMap();
+                        if (theSelectedLoansObj != null) {
+                            thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
+                        }
+
+                        String strBillerPaymentType = thePaybillDetails.getStringValue("payment_type");
+
+                        String theLimitType = "BILL_PAYMENT";
+                        if (strBillerPaymentType.equalsIgnoreCase("BANK_TRANSFER")) {
+                            theLimitType = "BANK_TRANSFER";
+                        }
+
+                      /*  double dblDailyLimitRemainingAmount = CBSAPI.dailyTotalMoneyOut(strSourceAccountNo, theLimitType);
+
+                        dblPayBillMaximum = Math.min(dblPayBillMaximum, dblDailyLimitRemainingAmount);*/
+
+                        if (dblAmountEntered < dblPayBillMinimum) {
+                            strResponse = strHeader + "\n{MINIMUM amount allowed is KES " + Utils.formatDouble(strPayBillMinimum, "#,##0.00") + "}\nEnter amount:";
+                            theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                        }/* else if (dblDailyLimitRemainingAmount <= 0) {
+                            strResponse = strHeader + "\nSorry, the remaining amount you can transact today is KES 0.";
+                            ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption = new ArrayList<USSDResponseSELECTOption>();
+                            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strResponse);
+                            theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithHomeAndExit(theUSSDRequest, AppConstants.USSDDataType.OPEN_PAY_BILL_END, "NO", theArrayListUSSDSelectOption);
+                        }*/ else if (dblAmountEntered > dblPayBillMaximum) {
+                            strResponse = strHeader + "\n{MAXIMUM amount allowed is KES " + Utils.formatDouble(strPayBillMaximum, "#,##0.00") + "}\nEnter amount:";
+                            theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                        } else if (Double.parseDouble(strAmount) > dblAvailableBalance) {
+                            strResponse = strHeader + "\n{" + strSourceAccountLabel + " avail bal KES " + Utils.formatDouble(dblAvailableBalance, "#,##0.00") + " is INSUFFICIENT to " + strHeader + " of KES " + Utils.formatDouble(strAmount, "#,##0.00") + "}\nEnter amount:";
+                            theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                        }
+                    } else {
+                        String strResponse = strHeader + "\n{Please enter a valid amount}\nEnter amount:";
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT, USSDConstants.USSDInputType.STRING, "NO");
+                    }
+
+                    break;
+                }
+                case "PIN": {
+                    String strLoginPIN = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.LOGIN_PIN.name());
+                    String strPIN = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_PIN.name());
+                    if (strLoginPIN.equals(strPIN)) {
+
+                        Object theSelectedLoansObj = InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+                        FlexicoreHashMap thePaybillDetails = new FlexicoreHashMap();
+                        if (theSelectedLoansObj != null) {
+                            thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
+                        }
+
+                        String strBillerName = thePaybillDetails.getStringValue("name");
+                        String strBillerCode = thePaybillDetails.getStringValue("shortcode");
+                        String strBillerPaymentType = thePaybillDetails.getStringValue("payment_type");
+
+                        String strAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT.name());
+                        HashMap<String, String> hmAccountDetails = Utils.toHashMap(strAccountDetails);
+                        String strSourceAccountNo = hmAccountDetails.get("number");
+                        String strSourceAccountName = hmAccountDetails.get("name");
+                        String strSourceAccountTypeName = hmAccountDetails.get("type_name");
+                        String strSourceAccountLabel = hmAccountDetails.get("label");
+
+                     /*   String strSourceAccountNo = hmAccountDetails.get("ac_no");
+                        //String strSourceAccountName = hmAccountDetails.get("ac_name");
+                        String strSourceAccountLabel = hmAccountDetails.get("ac_label");
+                        String strSourceAccountAvailableBalance = hmAccountDetails.get("ac_bal");*/
+
+                        String strAmount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT.name());
+
+                        String strMobileNo = Long.toString(theUSSDRequest.getUSSDMobileNo());
+
+                        /*AppConstants.ChargeServices chargeServices;
+
+                        if (strBillerPaymentType.equalsIgnoreCase("BANK_TRANSFER")) {
+                            chargeServices = AppConstants.ChargeServices.BANK_TRANSFER;
+                        } else if (strBillerPaymentType.equalsIgnoreCase("TILL_PAYMENT")) {
+                            chargeServices = AppConstants.ChargeServices.TILL_PAYMENT;
+                        } else {
+                            chargeServices = AppConstants.ChargeServices.BILL_PAYMENT;
+                        }
+
+                        TransactionWrapper<FlexicoreHashMap> chargesWrapper = CBSAPI.getCharges(strMobileNo, "MSISDN", strMobileNo, chargeServices.getValue(),
+                                Double.parseDouble(strAmount),"USSD");
+
+                        String strCharge = "";
+                        if (chargesWrapper.hasErrors()) {
+                            strCharge = "";
+                        } else {
+                            strCharge = "\nCharge: KES " + chargesWrapper.getSingleRecord().getStringValue("charge_amount");
+                        }*/
+
+                        strAmount = Utils.formatDouble(strAmount, "#,##0.00");
+
+                        String strResponse = "Confirm " + strHeader + "\n\n" + strBillerName + ": " + strBillerCode;
+
+                        if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+                            String strShortcodeAccount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE_ACCOUNT.name());
+                            strResponse = strResponse + "\nA/C: " + strShortcodeAccount;
+                        }
+
+                        strResponse = strResponse + "\nPaying A/C: " + strSourceAccountLabel + "-" + strSourceAccountNo + "\nAmount: KES " + strAmount+"\n";
+
+                        ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption = new ArrayList<USSDResponseSELECTOption>();
+                        USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strResponse);
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithConfirmation(theUSSDRequest, AppConstants.USSDDataType.OPEN_PAY_BILL_CONFIRMATION, "NO", theArrayListUSSDSelectOption);
+
+                    } else {
+                        String strResponse = strHeader + "\n{Please enter correct PIN}\nEnter your PIN:";
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralInput(theUSSDRequest, strResponse, AppConstants.USSDDataType.OPEN_PAY_BILL_PIN, USSDConstants.USSDInputType.STRING, "NO");
+                    }
+
+                    break;
+                }
+                case "CONFIRMATION": {
+                    String strConfirmation = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_CONFIRMATION.name());
+
+                    if(strConfirmation.equalsIgnoreCase("YES")){
+
+                        String  strResponse;
+
+                        /*Thread worker = new Thread(() -> {
+                            APIConstants.TransactionReturnVal transactionReturnVal = theUSSDAPI.payBill(theUSSDRequest, PESAConstants.PESAType.PESA_OUT);
+                            System.out.println("withdrawal: "+transactionReturnVal.getValue());
+                        });
+                        worker.start();*/
+
+                        HashMap<String, String> hmResponse = new HashMap<>();
+                        USSDAPIConstants.TransactionReturnVal transactionReturnVal = theUSSDAPI.payBill(theUSSDRequest, PESAConstants.PESAType.PESA_OUT, hmResponse);
+
+                        if(transactionReturnVal.equals(USSDAPIConstants.TransactionReturnVal.SUCCESS)){
+                            strResponse = "Dear member, your request to " +strHeader+ " has been received successfully. Please wait shortly as it's being processed.\n";
+                        } else {
+                            switch (transactionReturnVal) {
+                                case INCORRECT_PIN: {
+                                    strResponse = "Sorry the PIN provided is incorrect. Your request to " +strHeader+ " CANNOT be completed.\n";
+                                    break;
+                                }
+                                case INSUFFICIENT_BAL: {
+                                    strResponse = "Dear member, you have insufficient balance to complete this request. Please check your account balance and try again.\n";
+                                    break;
+                                }
+                                case WITHDRAWAL_LIMIT_VIOLATION: {
+                                    String strCBSResponse = hmResponse.get("WITHDRAWAL_LIMIT_VIOLATION");
+                                    strResponse = "Dear member, amount requested to " +strHeader+ " violates limit RESTRICTION\n" + strCBSResponse + "\n";
+
+                                    break;
+                                }
+                                case BLOCKED: {
+                                    strResponse = "Dear member, your account has been blocked. Your request to " +strHeader+ " CANNOT be completed.\n";
+                                    break;
+                                }
+                                default: {
+                                    strResponse = "Sorry, your " +strHeader+ " request CANNOT be completed at the moment. Please try again later.\n";
+                                    break;
+                                }
+                            }
+                        }
+
+                        InMemoryCache.remove(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+
+                        ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption  = new ArrayList<USSDResponseSELECTOption>();
+                        USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strResponse);
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithHomeAndExit(theUSSDRequest, AppConstants.USSDDataType.PAY_BILL_END, "NO",theArrayListUSSDSelectOption);
+
+                    } else if (strConfirmation.equalsIgnoreCase("NO")) {
+                        String strResponse = "Dear member, your " + strHeader + " request NOT confirmed. " + strHeader + "  request NOT COMPLETED.\n";
+                        ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption = new ArrayList<USSDResponseSELECTOption>();
+                        USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strResponse);
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithHomeAndExit(theUSSDRequest, AppConstants.USSDDataType.OPEN_PAY_BILL_END, "NO", theArrayListUSSDSelectOption);
+                    } else {
+
+                        Object theSelectedLoansObj = InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+                        FlexicoreHashMap thePaybillDetails = new FlexicoreHashMap();
+                        if (theSelectedLoansObj != null) {
+                            thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
+                        }
+
+                        String strBillerName = thePaybillDetails.getStringValue("name");
+                        String strBillerCode = thePaybillDetails.getStringValue("shortcode");
+                        String strBillerPaymentType = thePaybillDetails.getStringValue("payment_type");
+
+                        String strAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT.name());
+                        HashMap<String, String> hmAccountDetails = Utils.toHashMap(strAccountDetails);
+
+                        /*String strSourceAccountNo = hmAccountDetails.get("number");
+                        String strSourceAccountName = hmAccountDetails.get("name");
+                        String strSourceAccountTypeName = hmAccountDetails.get("type_name");
+                        String strSourceAccountLabel = hmAccountDetails.get("label");*/
+
+                        String strSourceAccountNo = hmAccountDetails.get("ac_no");
+                        //String strSourceAccountName = hmAccountDetails.get("ac_name");
+                        String strSourceAccountLabel = hmAccountDetails.get("ac_label");
+                        String strSourceAccountAvailableBalance = hmAccountDetails.get("ac_bal");
+
+                        String strAmount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT.name());
+
+                      /*  AppConstants.ChargeServices chargeServices;
+
+                        if (strBillerPaymentType.equalsIgnoreCase("BANK_TRANSFER")) {
+                            chargeServices = AppConstants.ChargeServices.BANK_TRANSFER;
+                        } else if (strBillerPaymentType.equalsIgnoreCase("TILL_PAYMENT")) {
+                            chargeServices = AppConstants.ChargeServices.TILL_PAYMENT;
+                        } else {
+                            chargeServices = AppConstants.ChargeServices.BILL_PAYMENT;
+                        }
+
+                        TransactionWrapper<FlexicoreHashMap> chargesWrapper = CBSAPI.getCharges(strMobileNo, "MSISDN", strMobileNo, chargeServices.getValue(),
+                                Double.parseDouble(strAmount),"USSD");
+
+                        String strCharge = "";
+                        if (chargesWrapper.hasErrors()) {
+                            strCharge = "";
+                        } else {
+                            strCharge = "\nCharge: KES " + chargesWrapper.getSingleRecord().getStringValue("charge_amount");
+                        }*/
+
+                        strAmount = Utils.formatDouble(strAmount, "#,##0.00");
+
+                        // String strResponse = "Confirm " + strHeader + "\n{Select a valid menu}\n\nBill " + strToAccountNaming + ": " + strAccountIdentifier + "\nName: " + strAccountName + "\nPaying A/C: " + strSourceAccountLabel + "-" + strSourceAccountNo + "\nAmount: KES " + strAmount + strCharge + "\n";
+
+                        String strResponse = "Confirm " + strHeader + "\n{Select a valid menu}\n\n" + strBillerName + ": " + strBillerCode;
+
+                        if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+                            String strShortcodeAccount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE_ACCOUNT.name());
+                            strResponse = strResponse + "\nA/C: " + strShortcodeAccount;
+                        }
+
+                        strResponse = strResponse + "\nPaying A/C: " + strSourceAccountLabel + "-" + strSourceAccountNo + "\nAmount: KES " + strAmount+"\n";
+
+                        ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption = new ArrayList<USSDResponseSELECTOption>();
+                        USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strResponse);
+                        theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithConfirmation(theUSSDRequest, AppConstants.USSDDataType.OPEN_PAY_BILL_CONFIRMATION, "NO", theArrayListUSSDSelectOption);
+                    }
+
+                    break;
+                }
+                default: {
+                    System.err.println("theAppMenus.displayMenu_PayBill_payment() UNKNOWN PARAM ERROR : theParam = " + theParam);
+
+                    String strResponse = strHeader + "\n{Sorry, an error has occurred while processing your request}";
+                    ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption = new ArrayList<USSDResponseSELECTOption>();
+                    USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, strResponse);
+                    theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithHomeAndExit(theUSSDRequest, AppConstants.USSDDataType.OPEN_PAY_BILL_END, "NO", theArrayListUSSDSelectOption);
+
+                    break;
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("theAppMenus.displayMenu_PayBill() ERROR : " + e.getMessage());
+        } finally {
+            theAppMenus = null;
+        }
+        return theUSSDResponse;
+    }
+
+    default USSDResponse getProceedConfirmation(USSDRequest theUSSDRequest, String theHeader) {
+        USSDResponse theUSSDResponse = null;
+        AppMenus theAppMenus = new AppMenus();
+        try {
+
+            System.out.println("here 2"+theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+
+            Object theSelectedLoansObj = ke.co.skyworld.smp.utility_items.memory.InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+            FlexicoreHashMap thePaybillDetails = new FlexicoreHashMap();
+            if (theSelectedLoansObj != null) {
+                thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
+            }
+
+            System.out.println("thePaybillDetails: "+thePaybillDetails);
+            String name = thePaybillDetails.getStringValue("name");
+            String shortcode = thePaybillDetails.getStringValue("shortcode");
+
+            theHeader = theHeader + " " + name + "(" + shortcode + ")?";
+
+            ArrayList<USSDResponseSELECTOption> theArrayListUSSDSelectOption = new ArrayList<>();
+
+            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, theHeader);
+            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, "1", "YES", "1: Yes");
+            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, "2", "TRY_AGAIN", "2: Try Again");
+            theUSSDResponse = theAppMenus.displayMenu_GeneralSelectWithHomeAndExit(theUSSDRequest, AppConstants.USSDDataType.OPEN_PAY_BILL_HAKIKISHA, "NO", theArrayListUSSDSelectOption);
+            return theUSSDResponse;
+        } catch (Exception e) {
+            System.err.println("theAppMenus.getRecoveryPeriod() ERROR : " + e.getMessage());
+        } finally {
             theAppMenus = null;
         }
         return theUSSDResponse;

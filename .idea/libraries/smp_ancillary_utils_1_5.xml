@@ -1,7 +1,7 @@
 <component name="libraryTable">
-  <library name="MBANKINGServer">
+  <library name="smp-ancillary-utils-1.5">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/lib/MBANKINGServer.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/smp-ancillary-utils-1.5.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

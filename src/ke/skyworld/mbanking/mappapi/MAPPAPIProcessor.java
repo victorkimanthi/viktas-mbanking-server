@@ -231,6 +231,10 @@ public class MAPPAPIProcessor {
                     theMAPPResponse = theMAPPAPI.getLipaNaVikashAccounts(theMAPPRequest,MAPPConstants.AccountType.FOSA);
                     break;
                 }
+                case "PAYMENT_RECEIVER_HAKIKISHA": {
+                    theMAPPResponse = theMAPPAPI.paymentReceiverHakikisha(theMAPPRequest);
+                    break;
+                }
                 case "UNKNOWN": {
                     theMAPPResponse = theMAPPAPI.accountBalanceEnquiry(theMAPPRequest);
                     break;

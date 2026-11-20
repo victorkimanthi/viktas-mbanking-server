@@ -1,5 +1,13 @@
 package ke.skyworld.mbanking.ussdapi;
 
+import ke.co.skyworld.smp.query_manager.SystemTables;
+import ke.co.skyworld.smp.query_manager.beans.FlexicoreHashMap;
+import ke.co.skyworld.smp.query_manager.beans.TransactionWrapper;
+import ke.co.skyworld.smp.query_manager.query.FilterPredicate;
+import ke.co.skyworld.smp.query_repository.Repository;
+import ke.co.skyworld.smp.utility_items.DateTime;
+import ke.co.skyworld.smp.utility_items.constants.StringRefs;
+import ke.co.skyworld.smp.utility_items.data_formatting.XmlUtils;
 import ke.skyworld.lib.mbanking.core.MBankingConstants;
 import ke.skyworld.lib.mbanking.core.MBankingDB;
 import ke.skyworld.lib.mbanking.core.MBankingUtils;
@@ -8,6 +16,10 @@ import ke.skyworld.lib.mbanking.msg.MSGConstants;
 import ke.skyworld.lib.mbanking.pesa.PESA;
 import ke.skyworld.lib.mbanking.pesa.PESAConstants;
 import ke.skyworld.lib.mbanking.pesa.PESAProcessor;
+import ke.skyworld.lib.mbanking.register.DerivedRegisterLocalParameters;
+import ke.skyworld.lib.mbanking.register.DerivedRegisterResponse;
+import ke.skyworld.lib.mbanking.register.RegisterConstants;
+import ke.skyworld.lib.mbanking.register.RegisterProcessor;
 import ke.skyworld.lib.mbanking.ussd.USSDLocalParameters;
 import ke.skyworld.lib.mbanking.ussd.USSDRequest;
 import ke.skyworld.lib.mbanking.utils.Crypto;
@@ -16,6 +28,7 @@ import ke.skyworld.lib.mbanking.utils.Utils;
 import ke.skyworld.mbanking.cbs.CBSAPI;
 import ke.skyworld.mbanking.mbankingapi.MBankingAPI;
 import ke.skyworld.mbanking.mbankingapi.MBankingAPIUtils;
+import ke.skyworld.mbanking.msgapi.MSGAPI;
 import ke.skyworld.mbanking.pesaapi.PESAAPI;
 import ke.skyworld.mbanking.pesaapi.PESAAPIConstants;
 import ke.skyworld.mbanking.pesaapi.PesaParam;
@@ -3159,6 +3172,383 @@ public class USSDAPI {
 			return strValue.substring(0, Math.min(strValue.length(), expectedLength));
 		}
 		return "";
+	}
+
+	public static FlexicoreHashMap safaricomHakikisha(String strServiceType, String identifier) {
+		String strOriginatorId = UUID.randomUUID().toString().toLowerCase();
+		RegisterConstants.DerivedRegisterMode derivedRegisterMode = RegisterConstants.DerivedRegisterMode.HYBRID;
+		RegisterConstants.DerivedRegisterType derivedRegisterType = RegisterConstants.DerivedRegisterType.SAFARICOM_HAKIKISHA;
+		RegisterConstants.Sensitivity sensitivity = RegisterConstants.Sensitivity.NORMAL;
+		RegisterConstants.DerivedRegisterIdentifierType registerIdentifierType;
+		System.out.println("THE SERVICE TYPE PASSED: " + strServiceType);
+		if (strServiceType.equalsIgnoreCase("TILL_PAYMENT")) {
+			registerIdentifierType = RegisterConstants.DerivedRegisterIdentifierType.TILL_NUMBER;
+		} else {
+			registerIdentifierType = RegisterConstants.DerivedRegisterIdentifierType.PAYBILL_NO;
+		}
+//String strRegisterIdentifier = "5059845";
+		String strSourceApplication = "MBANKING_SERVER";
+		String strSourceReference = "MBSVR-" + strOriginatorId;
+		String strCategory = "SAFARICOM_HAKIKISHA";
+		String clientXMLParameters = DerivedRegisterLocalParameters.getClientXMLParameters();
+		System.out.println("clientXMLParameters 0");
+//		String clientXMLParameters = USSDAPIDB.getDerivedRegisterClientParameters(6);
+		System.out.println("clientXMLParameters:"+clientXMLParameters);
+		Document docXMLParameters = XmlUtils.parseXml(clientXMLParameters);
+		String stProductId = XmlUtils.getTagValue(docXMLParameters, "/OTHER_DETAILS/CUSTOM_PARAMETERS/PRODUCT_ID");
+		System.out.println("stProductId:"+stProductId);
+		DerivedRegisterResponse derivedRegisterResponse = RegisterProcessor.getDerivedRegister(strOriginatorId,
+				Long.parseLong(stProductId),
+				derivedRegisterMode, derivedRegisterType, sensitivity, "YES", registerIdentifierType,
+				identifier, strSourceApplication, strSourceReference, strCategory);
+
+		System.out.println("clientXMLParameters 2:"+clientXMLParameters);
+
+		System.out.println("response_code: " + derivedRegisterResponse.getResponseCode());
+		System.out.println("response_type: " + derivedRegisterResponse.getResponseType());
+		System.out.println("response_description: " + derivedRegisterResponse.getResponseDescription());
+		System.out.println("register_type: " + derivedRegisterResponse.getRegisterType());
+		System.out.println("register_action: " + derivedRegisterResponse.getRegisterAction());
+		System.out.println("register_mode: " + derivedRegisterResponse.getRegisterMode());
+		System.out.println("register_id: " + derivedRegisterResponse.getRegisterID());
+		System.out.println("type: " + derivedRegisterResponse.getIdentifierType());
+		System.out.println("identifier: " + derivedRegisterResponse.getIdentifier());
+		System.out.println("full_name: " + derivedRegisterResponse.getFullName());
+		System.out.println("charge_applied: " + derivedRegisterResponse.getCharge());
+		System.out.println("other_details: " + derivedRegisterResponse.getOtherDetails());
+		System.out.println("date_created: " + derivedRegisterResponse.getDateCreated());
+		if (derivedRegisterResponse.getResponseCode() == 102) {
+			FlexicoreHashMap resultMap = new FlexicoreHashMap();
+
+			System.out.println("TILL_PAYMENT 1");
+			if (strServiceType.equalsIgnoreCase("TILL_PAYMENT")) {
+				System.out.println("TILL_PAYMENT 2");
+				resultMap.putValue("payment_type", "TILL_PAYMENT");
+				resultMap.putValue("allowed", "YES");
+				System.out.println("TILL_PAYMENT 3");
+			} else {
+				//todo: add bank_paybill_codes table
+				if (USSDAPIDB.isBankPaybill(identifier)) {
+					System.out.println("TILL_PAYMENT 4");
+					resultMap.putValue("payment_type", "BANK_TRANSFER");
+					resultMap.putValue("allowed", "YES");
+				} else {
+					System.out.println("TILL_PAYMENT 5");
+					resultMap.putValue("payment_type", "BILL_PAYMENT");
+
+					if (identifier.equalsIgnoreCase("531231")) {
+						resultMap.putValue("allowed", "NO");
+						resultMap.putValue("disallowed_display_message", derivedRegisterResponse.getFullName()
+								+ " (" + identifier + ") For Azima to Azima transactions, kindly use account transfer.");
+					} else if (identifier.equalsIgnoreCase("888880") || identifier.equalsIgnoreCase("888888")) {
+						resultMap.putValue("allowed", "NO");
+						resultMap.putValue("disallowed_display_message", derivedRegisterResponse.getFullName()
+								+ " (" + identifier + ") Currently Not Available");
+					} else {
+						resultMap.putValue("allowed", "YES");
+						System.out.println("TILL_PAYMENT 6");
+					}
+					System.out.println("TILL_PAYMENT 7");
+				}
+			}
+
+			resultMap.putValue("name", derivedRegisterResponse.getFullName());
+			resultMap.putValue("shortcode", derivedRegisterResponse.getIdentifier());
+			return resultMap;
+		} else {
+			return null;
+		}
+	}
+
+	public USSDAPIConstants.TransactionReturnVal utilityPaymentWithHakikisha(USSDRequest theUSSDRequest,PESAConstants.PESAType thePESAType,HashMap<String, String> theResponse) {
+
+		TransactionWrapper<FlexicoreHashMap> resultWrapper = new TransactionWrapper<>();
+		String strCategory;
+
+		USSDAPIConstants.TransactionReturnVal rVal = USSDAPIConstants.TransactionReturnVal.ERROR;
+		try {
+
+			String strDateTime = MBankingDB.getDBDateTime();
+			String strMobileNumber = String.valueOf(theUSSDRequest.getUSSDMobileNo());
+			String strSIMID = String.valueOf(theUSSDRequest.getUSSDIMSI());
+
+			String strMobileNumberFrom = String.valueOf(theUSSDRequest.getUSSDMobileNo());
+			String strMobileNumberTo = strMobileNumberFrom;
+
+			String strMemberName = getUserFullName(strMobileNumber);
+			String strTraceID = theUSSDRequest.getUSSDTraceID();
+
+			//String strOriginatorID = theUSSDRequest.getUSSDTraceID();
+			String strTransactionID = MBankingUtils.generateTransactionIDFromSession(MBankingConstants.AppTransID.USSD, theUSSDRequest.getUSSDSessionID(), theUSSDRequest.getSequence());
+
+			int intPriority = 200;
+
+       /*     String strBillAccountNumberHashMap = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.PAY_BILL_BILLER_ACCOUNT.name());
+            HashMap<String, String> hmAccount = Utils.toHashMap(strBillAccountNumberHashMap);
+            String strBillerAccount = hmAccount.get("ACCOUNT_IDENTIFIER");
+            String strBillerAccountToName = hmAccount.get("ACCOUNT_NAME");*/
+
+			Object theSelectedLoansObj = ke.co.skyworld.smp.utility_items.memory.InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+			FlexicoreHashMap thePaybillDetails = new FlexicoreHashMap();
+			if (theSelectedLoansObj != null) {
+				thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
+			}
+
+			String strBillerName = thePaybillDetails.getStringValue("name");
+			String strBillerCode = thePaybillDetails.getStringValue("shortcode");
+			String strBillerPaymentType = thePaybillDetails.getStringValue("payment_type");
+
+			String strBillerAccount = "";
+			String strBillerAccountToName = "";
+
+			String strUTILITIES_MENU = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.UTILITIES_MENU.name());
+			if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+				String strShortcodeAccount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE_ACCOUNT.name());
+				strBillerAccount = strShortcodeAccount;
+				strBillerAccountToName = strShortcodeAccount;
+			} else {
+				strBillerAccount = strBillerCode;
+				strBillerAccountToName = strBillerName;
+			}
+
+			String strNarration;
+			String strCommand;
+
+			if (strBillerPaymentType.equalsIgnoreCase("BANK_TRANSFER")) {
+				strCategory = "BANK_TRANSFER";
+				strNarration = "B2B Bank Transfer to " + strBillerAccountToName + " for Account " + strBillerAccount;
+				strCommand = "BusinessPayBill";
+			} else if (strBillerPaymentType.equalsIgnoreCase("TILL_PAYMENT")) {
+				strCategory = "TILL_PAYMENT";
+				//strNarration = "B2B Buy Goods and Services to " + strBillerAccountToName;
+				strNarration = "B2B Buy Goods and Services";
+				strCommand = "BusinessBuyGoods";
+			} else {
+				strCategory = "BILL_PAYMENT";
+				strNarration = "B2B Bill Payment to " + strBillerAccountToName + " for Account " + strBillerAccount;
+				strCommand = "BusinessPayBill";
+			}
+
+			String strAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT.name());
+
+			HashMap<String, String> hmAccountDetails = Utils.toHashMap(strAccountDetails);
+			String strSourceCustomerIdentifier = hmAccountDetails.get("cust_id");
+			String strSourceAccountNo = hmAccountDetails.get("ac_no");
+			String strSourceAccountName = hmAccountDetails.get("ac_name");
+			String strSourceAccountLabel = hmAccountDetails.get("ac_label");
+			String strSourceAccountAvailableBalance = hmAccountDetails.get("ac_bal");
+
+		/*	HashMap<String, String> hmAccountDetails = Utils.toHashMap(strAccountDetails);
+			String strSourceAccountNo = hmAccountDetails.get("number");
+			String strSourceAccountName = hmAccountDetails.get("name");
+			String strSourceAccountTypeName = hmAccountDetails.get("type_name");
+			String strSourceAccountLabel = hmAccountDetails.get("label");*/
+
+			String strAmount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_AMOUNT.name());
+			String strPIN = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_PIN.name());
+
+            String strUtilityProviderAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.UTILITIES_MENU.name());
+
+           /* HashMap<String, String> hmUtilityAccountDetails = Utils.toHashMap(strUtilityProviderAccountDetails);
+
+            String strToSPProviderAccountCode = hmUtilityAccountDetails.get("code");
+            String strToAccountIdentifier = hmUtilityAccountDetails.get("identifier");
+            String strToAccountType = hmUtilityAccountDetails.get("type");
+            String strToAccountNaming = hmUtilityAccountDetails.get("type_tag");
+            String strBillerName = hmUtilityAccountDetails.get("long_tag");*/
+
+			PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_B2B);
+
+			long getProductID = Long.parseLong(pesaParam.getProductId());
+
+			String strSenderIdentifier = pesaParam.getSenderIdentifier();
+			String strSenderAccount = pesaParam.getSenderAccount();
+			String strSenderName = pesaParam.getSenderName();
+
+			PESA pesa = new PESA();
+
+//			String strOriginatorID = APIUtils.fnModifyUSSDSessionID(theUSSDRequest); //UUID.randomUUID().toString();
+		    String strOriginatorID = String.valueOf(theUSSDRequest.getUSSDSessionID()); //UUID.randomUUID().toString();
+			; //UUID.randomUUID().toString();
+
+			pesa.setOriginatorID(strOriginatorID);
+			pesa.setProductID(getProductID);
+
+//			pesa.setPESAType(PESAConstants.PESAType.PESA_OUT);
+			pesa.setPESAType(thePESAType);
+			pesa.setPESAAction(PESAConstants.PESAAction.B2B);
+			pesa.setCommand(strCommand);
+			pesa.setSensitivity(PESAConstants.Sensitivity.NORMAL);
+
+			pesa.setPESAStatusCode(10);
+			pesa.setPESAStatusName("QUEUED");
+			pesa.setPESAStatusDescription("New PESA");
+			pesa.setPESAStatusDate(strDateTime);
+
+			pesa.setInitiatorType("MSISDN");
+			pesa.setInitiatorIdentifier(strMobileNumber);
+			pesa.setInitiatorAccount(strMobileNumber);
+			pesa.setInitiatorName(strMemberName);
+			pesa.setInitiatorReference(strTraceID);
+			pesa.setInitiatorApplication("USSD");
+			pesa.setInitiatorOtherDetails("<DATA/>");
+
+			pesa.setSourceType("ACCOUNT_NO");
+			pesa.setSourceIdentifier(strSourceAccountNo);
+			pesa.setSourceAccount(strSourceAccountNo);
+			pesa.setSourceName(strSourceAccountName);
+			//deferred to after CBS call below
+			//pesa.setSourceReference();
+			pesa.setSourceApplication("CBS");
+			pesa.setSourceOtherDetails("<DATA/>");
+
+			pesa.setSenderType("SHORT_CODE");
+			pesa.setSenderIdentifier(strSenderIdentifier);
+			pesa.setSenderAccount(strSenderAccount);
+			pesa.setSenderName(strSenderName);
+			pesa.setSenderOtherDetails("<DATA/>");
+
+			if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+				pesa.setReceiverType("SHORT_CODE");
+				pesa.setReceiverIdentifier(strBillerCode);
+				pesa.setReceiverAccount(strBillerAccount);
+				pesa.setReceiverName(strBillerName);
+				pesa.setReceiverOtherDetails("<DATA/>");
+			} else {
+				pesa.setReceiverType("TILL_NUMBER");
+				pesa.setReceiverIdentifier(strBillerCode);
+				pesa.setReceiverAccount(strBillerAccount);
+				pesa.setReceiverName(strBillerName);
+				pesa.setReceiverOtherDetails("<DATA/>");
+			}
+
+			pesa.setBeneficiaryType("MSISDN");
+			pesa.setBeneficiaryIdentifier(strMobileNumber);
+			pesa.setBeneficiaryAccount(strMobileNumber);
+			pesa.setBeneficiaryName(strBillerAccountToName);
+			pesa.setBeneficiaryOtherDetails("<DATA/>");
+
+			pesa.setBatchReference(strOriginatorID);
+			pesa.setCorrelationReference(strTraceID);
+			pesa.setCorrelationApplication("USSD");
+			pesa.setTransactionCurrency("KES");
+			pesa.setTransactionAmount(Double.parseDouble(strAmount));
+			pesa.setTransactionRemark(strNarration);
+			pesa.setCategory(strCategory);
+
+			pesa.setPriority(200);
+			pesa.setSendCount(0);
+
+			pesa.setSchedulePesa(PESAConstants.Condition.NO);
+			pesa.setPesaDateScheduled(strDateTime);
+			pesa.setPesaDateCreated(strDateTime);
+			pesa.setPESAXMLData("<DATA/>");
+
+
+			HashMap<String,String> hmRVal = CBSAPI.mobileMoneyWithdrawal(theUSSDRequest.getUSSDTraceID(), "MSISDN", strMobileNumber, strPIN,"IMSI", strSIMID, strTransactionID,
+					pesa.getSenderType(), pesa.getSenderIdentifier(), pesa.getSenderAccount(), pesa.getSenderName(), pesa.getSenderOtherDetails(),
+					pesa.getReceiverType(), pesa.getReceiverIdentifier(), pesa.getReceiverAccount(), pesa.getReceiverName(), pesa.getReceiverOtherDetails(),
+					pesa.getBeneficiaryType(),pesa.getBeneficiaryIdentifier(), pesa.getBeneficiaryAccount(),pesa.getBeneficiaryName(), pesa.getBeneficiaryOtherDetails(),
+					strSourceAccountNo, strAmount,strCategory,pesa.getTransactionRemark(), theUSSDRequest.getUSSDTraceID(), "MBANKING_SERVER", "USSD", strDateTime);
+
+			String strTransactionStatus = hmRVal.get("transaction_status");
+			String strTransactionStatusDescription = hmRVal.get("transaction_status_description");
+			String strTransactionDateTime = hmRVal.get("transaction_date_time");
+
+			switch (strTransactionStatus) {
+				case "SUCCESS": {
+					String strMSG = "";
+
+					String strFormattedAmount = Utils.formatDouble(strAmount, "#,###.##");
+					String strFormattedDateTime = Utils.formatDate(strDateTime, "yyyy-mm-dd HH:mm:ss","dd-MMM-yyyy HH:mm:ss");
+
+					if(PESAProcessor.sendPESA(pesa) > 0){
+						strMSG = "Dear member, your Bill Payment request of KES " + strFormattedAmount + " to " + pesa.getReceiverName() + ", beneficiary " + pesa.getBeneficiaryIdentifier() + " on " + strFormattedDateTime + " has been sent successfully.\nRef: " + strTransactionID;
+						rVal = USSDAPIConstants.TransactionReturnVal.SUCCESS;
+
+					} else {
+						rVal = USSDAPIConstants.TransactionReturnVal.ERROR;
+
+						HashMap<String,String> hmRValResult = CBSAPI.mobileMoneyResult(pesa.getOriginatorID(), strTransactionID, PESAConstants.PESAResult.FAILED.getValue(),"Transaction FAILED to be queued on the database",
+								pesa.getBeneficiaryType(),pesa.getBeneficiaryIdentifier(),pesa.getBeneficiaryName(), pesa.getBeneficiaryOtherDetails(),
+								"", strDateTime);
+
+						String strResultTransactionStatus = hmRValResult.get("transaction_status");
+						String strResultTransactionStatusDescription = hmRValResult.get("transaction_status_description");
+						String strResultTransactionStatusDateTime = hmRValResult.get("transaction_status_date_time");
+
+						if(strResultTransactionStatus.equalsIgnoreCase("SUCCESS")){
+							strMSG = "Dear member, your Bill Payment request of KES " + strFormattedAmount + " to " + pesa.getReceiverName() + ", beneficiary " + pesa.getBeneficiaryIdentifier() + " on " + strFormattedDateTime + " has been REVERSED. Dial *882# to check your balance.\nRef: " + strTransactionID;
+						}else{
+							strMSG = "Dear member, your Bill Payment request of KES " + strFormattedAmount + " to " + pesa.getReceiverName() + ", beneficiary " + pesa.getBeneficiaryIdentifier() + " on " + strFormattedDateTime + " REVERSAL FAILED. Please contact the SACCO for assistance.\nRef: " + strTransactionID;
+						}
+					}
+
+				/*	String strMSGOriginatorID = UUID.randomUUID().toString().toLowerCase();
+					String strMSGRequestCorrelationID =  strOriginatorID;
+					String strSourceReference = strTransactionID;
+					String strReceiver = String.valueOf(theUSSDRequest.getUSSDMobileNo());
+					MSGAPI.sendMSG(strMSGOriginatorID, MSGConstants.MSGMode.SAF, "MSISDN", strReceiver, strMSG, "USSD",
+							"MBANKING_SERVER", 210, strCategory, MSGConstants.Sensitivity.NORMAL, strMSGRequestCorrelationID, strSourceReference);
+					*/
+					break;
+				}
+				case "INCORRECT_PIN":{
+					rVal = USSDAPIConstants.TransactionReturnVal.INCORRECT_PIN;
+					break;
+				}
+				case "INVALID_ACCOUNT":{
+					rVal = USSDAPIConstants.TransactionReturnVal.INVALID_ACCOUNT;
+					break;
+				}
+				case "INSUFFICIENT_BAL":{
+					rVal = USSDAPIConstants.TransactionReturnVal.INSUFFICIENT_BAL;
+					break;
+				}
+				case "WITHDRAWAL_LIMIT_VIOLATION":{
+					rVal = USSDAPIConstants.TransactionReturnVal.WITHDRAWAL_LIMIT_VIOLATION;
+					theResponse.put("WITHDRAWAL_LIMIT_VIOLATION",strTransactionStatusDescription);
+					break;
+				}
+				case "ACCOUNT_NOT_ACTIVE":{
+					rVal = USSDAPIConstants.TransactionReturnVal.ACCOUNT_NOT_ACTIVE;
+					break;
+				}
+				case "BLOCKED":{
+					rVal = USSDAPIConstants.TransactionReturnVal.BLOCKED;
+					break;
+				}
+				default:{
+					rVal = USSDAPIConstants.TransactionReturnVal.ERROR;
+				}
+			}
+		} catch (Exception e) {
+			System.err.println(this.getClass().getSimpleName()+"."+new Object() {}.getClass().getEnclosingMethod().getName()+"() ERROR : " + e.getMessage());
+		}
+
+		return rVal;
+	}
+
+	public String getUserFullName(String strUserPhoneNumber) {
+		String strAccountName = "";
+
+		TransactionWrapper<FlexicoreHashMap> signatoryDetailsWrapper = Repository.selectWhere(StringRefs.SENTINEL,
+				SystemTables.TBL_CUSTOMER_REGISTER_SIGNATORIES, "full_name",
+				new FilterPredicate("primary_mobile_number = :primary_mobile_number"),
+				new FlexicoreHashMap().addQueryArgument(":primary_mobile_number", strUserPhoneNumber));
+
+		if (signatoryDetailsWrapper.hasErrors()) {
+			return "";
+		}
+
+		FlexicoreHashMap signatoryDetailsMap = signatoryDetailsWrapper.getSingleRecord();
+
+		if (signatoryDetailsMap != null && !signatoryDetailsMap.isEmpty()) {
+			strAccountName = signatoryDetailsMap.getStringValue("full_name");
+			return Utils.toTitleCase(strAccountName);
+		}
+
+		return strAccountName;
 	}
 
 }

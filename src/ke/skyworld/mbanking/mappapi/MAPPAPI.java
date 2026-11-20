@@ -1,5 +1,7 @@
 package ke.skyworld.mbanking.mappapi;
 
+import ke.co.skyworld.smp.query_manager.beans.FlexicoreHashMap;
+import ke.co.skyworld.smp.query_manager.beans.TransactionWrapper;
 import ke.skyworld.lib.mbanking.core.MBankingConstants;
 import ke.skyworld.lib.mbanking.core.MBankingDB;
 import ke.skyworld.lib.mbanking.core.MBankingUtils;
@@ -22,6 +24,7 @@ import ke.skyworld.mbanking.mbankingapi.MBankingAPIUtils;
 import ke.skyworld.mbanking.pesaapi.PESAAPI;
 import ke.skyworld.mbanking.pesaapi.PESAAPIConstants;
 import ke.skyworld.mbanking.pesaapi.PesaParam;
+import ke.skyworld.mbanking.ussdapi.USSDAPI;
 import ke.skyworld.mbanking.ussdapi.USSDAPIConstants;
 import ke.skyworld.mbanking.ussdapplication.AppConstants;
 import ke.skyworld.mbanking.xtreme.XTremeDBCache;
@@ -61,6 +64,7 @@ import java.util.regex.Pattern;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseAction.*;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.ERROR;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponseStatus.SUCCESS;
+import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponsesDataType.OBJECT;
 import static ke.skyworld.lib.mbanking.mapp.MAPPConstants.ResponsesDataType.TEXT;
 import static ke.skyworld.lib.mbanking.register.RegisterConstants.IdentityType.NATIONAL_ID;
 import static ke.skyworld.mbanking.ussdapi.APIUtils.*;
@@ -7955,6 +7959,218 @@ public class MAPPAPI {
             e.printStackTrace();
             return "";
         }
+    }
+
+    public MAPPResponse paymentReceiverHakikisha(MAPPRequest theMAPPRequest) {
+
+        MAPPResponse theMAPPResponse = null;
+
+        try {
+
+            System.out.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "()");
+
+            XPath configXPath = XPathFactory.newInstance().newXPath();
+
+            //Request
+            String strUsername = theMAPPRequest.getUsername();
+            String strPassword = theMAPPRequest.getPassword();
+            String strAppID = theMAPPRequest.getAppID();
+
+            long lnSessionID = theMAPPRequest.getSessionID();
+
+            Node ndRequestMSG = theMAPPRequest.getMSG();
+
+            String strService = configXPath.evaluate("SERVICE", ndRequestMSG).trim();
+            String strIdentifierType = configXPath.evaluate("IDENTIFIER/@TYPE", ndRequestMSG).trim();
+            String strIdentifier = configXPath.evaluate("IDENTIFIER", ndRequestMSG).trim();
+
+            //Accounts HashMap
+            /*{Salary Acc (5-04-00010-02)=5-04-00010-02, Micro-cred (4-61-90010-01)=4-61-90010-01}*/
+
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+
+            // Root element - MSG
+            Document doc = docBuilder.newDocument();
+
+            String strTitle = "Payment Receiver";
+
+            MAPPConstants.ResponsesDataType enDataType = OBJECT;
+
+            MAPPConstants.ResponseAction enResponseAction = CON;
+            MAPPConstants.ResponseStatus enResponseStatus = SUCCESS;
+
+            String strCharge = "NO";
+
+            Element elData = doc.createElement("DATA");
+
+            if (strService.equalsIgnoreCase("PAYBILL")) {
+                if (strIdentifierType.equalsIgnoreCase("SHORTCODE")) {
+
+                    FlexicoreHashMap shortcodeDetails = USSDAPI.safaricomHakikisha("PAYBILL", strIdentifier);
+
+                    if (shortcodeDetails != null) {
+
+                        String name = shortcodeDetails.getStringValue("name");
+                        String paymentType = shortcodeDetails.getStringValue("payment_type");
+                        String allowed = shortcodeDetails.getStringValueOrIfNull("allowed", "YES");
+                        String disallowedDisplayMessage = shortcodeDetails.getStringValue("disallowed_display_message");
+
+                        if (allowed.equalsIgnoreCase("YES")) {
+                            Element elName = doc.createElement("NAME");
+                            elName.setTextContent(name);
+                            elData.appendChild(elName);
+
+                            Element elPayment = doc.createElement("PAYMENT_TYPE");
+                            elPayment.setTextContent(paymentType);
+                            elData.appendChild(elPayment);
+
+                            double dblUtilityETopUplMin;
+                            double dblUtilityETopUplMax;
+
+                            if (paymentType.equalsIgnoreCase("BANK_TRANSFER")) {
+                                dblUtilityETopUplMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.EXTERNAL_FUNDS_TRANSFER).getMinimum());
+                                dblUtilityETopUplMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.EXTERNAL_FUNDS_TRANSFER).getMaximum());
+                            } else {
+                                dblUtilityETopUplMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.PAY_BILL).getMinimum());
+                                dblUtilityETopUplMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.PAY_BILL).getMaximum());
+                            }
+
+                            //create element AMOUNT_LIMITS and append to element DATA
+                            Element elWithdrawalLimits = doc.createElement("AMOUNT_LIMITS");
+                            Element elMinAmount = doc.createElement("MIN_AMOUNT");
+                            elMinAmount.setTextContent(String.valueOf(dblUtilityETopUplMin));
+                            Element elMaxAmount = doc.createElement("MAX_AMOUNT");
+                            elMaxAmount.setTextContent(String.valueOf(dblUtilityETopUplMax));
+                            elWithdrawalLimits.appendChild(elMinAmount);
+                            elWithdrawalLimits.appendChild(elMaxAmount);
+                            elData.appendChild(elWithdrawalLimits);
+
+                        } else {
+                            enResponseStatus = ERROR;
+                            enDataType = TEXT;
+                            String strDescription = disallowedDisplayMessage;
+                            elData.setTextContent(strDescription);
+                        }
+
+                    } else {
+                        enResponseStatus = ERROR;
+                        enDataType = TEXT;
+                        String strDescription = "Not found.";
+                        elData.setTextContent(strDescription);
+                    }
+                } else {
+                    enResponseStatus = ERROR;
+                    enDataType = TEXT;
+                    String strDescription = "Invalid Identifier Type Provided";
+                    elData.setTextContent(strDescription);
+                }
+            } else if (strService.equalsIgnoreCase("TILL_PAYMENT")) {
+                if (strIdentifierType.equalsIgnoreCase("SHORTCODE")) {
+                    FlexicoreHashMap shortcodeDetails = USSDAPI.safaricomHakikisha("TILL_PAYMENT", strIdentifier);
+
+                    if (shortcodeDetails != null) {
+                        String name = shortcodeDetails.getStringValue("name");
+                        String paymentType = shortcodeDetails.getStringValue("payment_type");
+
+                        Element elName = doc.createElement("NAME");
+                        elName.setTextContent(name);
+                        elData.appendChild(elName);
+
+                        Element elPayment = doc.createElement("PAYMENT_TYPE");
+                        elPayment.setTextContent(paymentType);
+                        elData.appendChild(elPayment);
+
+                        double dblUtilityETopUplMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.PAY_BILL).getMinimum());
+                        double dblUtilityETopUplMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.PAY_BILL).getMaximum());
+
+                        //create element AMOUNT_LIMITS and append to element DATA
+                        Element elWithdrawalLimits = doc.createElement("AMOUNT_LIMITS");
+                        Element elMinAmount = doc.createElement("MIN_AMOUNT");
+                        elMinAmount.setTextContent(String.valueOf(dblUtilityETopUplMin));
+                        Element elMaxAmount = doc.createElement("MAX_AMOUNT");
+                        elMaxAmount.setTextContent(String.valueOf(dblUtilityETopUplMax));
+                        elWithdrawalLimits.appendChild(elMinAmount);
+                        elWithdrawalLimits.appendChild(elMaxAmount);
+                        elData.appendChild(elWithdrawalLimits);
+                    } else {
+                        enResponseStatus = ERROR;
+                        enDataType = TEXT;
+                        String strDescription = "Not found.";
+                        elData.setTextContent(strDescription);
+                    }
+                } else {
+                    enResponseStatus = ERROR;
+                    enDataType = TEXT;
+                    String strDescription = "Invalid Identifier Type Provided";
+                    elData.setTextContent(strDescription);
+                }
+
+            } else if (strService.equalsIgnoreCase("SEND_MONEY")) {
+                if (strIdentifierType.equalsIgnoreCase("MSISDN")) {
+                    FlexicoreHashMap shortcodeDetails = USSDAPI.safaricomHakikisha("SEND_MONEY", strIdentifier);
+
+                    if (shortcodeDetails != null) {
+
+                        String name = shortcodeDetails.getStringValue("name");
+                        String paymentType = shortcodeDetails.getStringValue("payment_type");
+
+                        Element elName = doc.createElement("NAME");
+                        elName.setTextContent(name);
+                        elData.appendChild(elName);
+
+                        Element elPayment = doc.createElement("PAYMENT_TYPE");
+                        elPayment.setTextContent(paymentType);
+                        elData.appendChild(elPayment);
+
+                        double dblUtilityETopUplMin = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMinimum());
+                        double dblUtilityETopUplMax = Double.parseDouble(getParam(MAPPAPIConstants.MAPP_PARAM_TYPE.CASH_WITHDRAWAL).getMaximum());
+
+                        //create element AMOUNT_LIMITS and append to element DATA
+                        Element elWithdrawalLimits = doc.createElement("AMOUNT_LIMITS");
+                        Element elMinAmount = doc.createElement("MIN_AMOUNT");
+                        elMinAmount.setTextContent(String.valueOf(dblUtilityETopUplMin));
+                        Element elMaxAmount = doc.createElement("MAX_AMOUNT");
+                        elMaxAmount.setTextContent(String.valueOf(dblUtilityETopUplMax));
+                        elWithdrawalLimits.appendChild(elMinAmount);
+                        elWithdrawalLimits.appendChild(elMaxAmount);
+                        elData.appendChild(elWithdrawalLimits);
+                    } else {
+                        enResponseStatus = ERROR;
+                        enDataType = TEXT;
+                        String strDescription = "Mobile Number Provided not found.";
+                        elData.setTextContent(strDescription);
+                    }
+                } else {
+                    enResponseStatus = ERROR;
+                    enDataType = TEXT;
+                    String strDescription = "Invalid Identifier Type Provided";
+                    elData.setTextContent(strDescription);
+                }
+            } else {
+                enResponseStatus = ERROR;
+                enDataType = TEXT;
+                String strDescription = "Invalid Service Provided";
+                elData.setTextContent(strDescription);
+            }
+
+
+            generateResponseMSGNode(doc, elData, theMAPPRequest, enResponseAction, enResponseStatus, strCharge, strTitle, enDataType);
+
+            //Response
+            Node ndResponseMSG = doc.getElementsByTagName("MSG").item(0);
+
+            theMAPPResponse = setMAPPResponse(ndResponseMSG, theMAPPRequest);
+
+        } catch (Exception e) {
+            System.err.println(this.getClass().getSimpleName() + "." + new Object() {
+            }.getClass().getEnclosingMethod().getName() + "() ERROR : " + e.getMessage());
+
+            e.printStackTrace();
+        }
+
+        return theMAPPResponse;
     }
 
 }

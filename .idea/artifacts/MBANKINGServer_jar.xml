@@ -1,9 +1,13 @@
 <component name="ArtifactManager">
-  <artifact type="jar" name="MBANKINGServer:jar">
+  <artifact name="MBANKINGServer:jar">
     <output-path>$PROJECT_DIR$/out/artifacts/MBANKINGServer_jar</output-path>
-    <root id="archive" name="MBANKINGServer.jar">
-      <element id="module-output" name="MBANKINGServer" />
-      <element id="extracted-dir" path="$PROJECT_DIR$/lib/MBANKINGServer.jar" path-in-jar="/" />
+    <root id="root">
+      <element id="archive" name="MBANKINGServer.jar">
+        <element id="module-output" name="MBANKINGServer" />
+      </element>
+      <element id="directory" name="lib">
+        <element id="library" level="project" name="lib" />
+      </element>
     </root>
   </artifact>
 </component>

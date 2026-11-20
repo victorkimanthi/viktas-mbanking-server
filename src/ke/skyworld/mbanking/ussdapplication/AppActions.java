@@ -125,6 +125,10 @@ public class AppActions {
 		return new AppMenus().displayMenu_PayBill(theUSSDRequest, theParam);
 	}
 
+	public static USSDResponse action_OPEN_PAY_BILL(USSDRequest theUSSDRequest, String theParam){
+		return new AppMenus().displayMenu_PayBill_Payment(theUSSDRequest, theParam);
+	}
+
 	public static USSDResponse action_PAY_BILL_MAINTENANCE_ACCOUNT(USSDRequest theUSSDRequest, String theParam){
 		return new AppMenus().displayMenu_Paybill_Maintain_Accounts(theUSSDRequest, theParam);
 	}
