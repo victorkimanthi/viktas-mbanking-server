@@ -3265,6 +3265,8 @@ public class USSDAPI {
 		TransactionWrapper<FlexicoreHashMap> resultWrapper = new TransactionWrapper<>();
 		String strCategory;
 
+		System.out.println("utilityPaymentWithHakikisha 1");
+
 		USSDAPIConstants.TransactionReturnVal rVal = USSDAPIConstants.TransactionReturnVal.ERROR;
 		try {
 
@@ -3275,7 +3277,7 @@ public class USSDAPI {
 			String strMobileNumberFrom = String.valueOf(theUSSDRequest.getUSSDMobileNo());
 			String strMobileNumberTo = strMobileNumberFrom;
 
-			String strMemberName = getUserFullName(strMobileNumber);
+//			String strMemberName = getUserFullName(strMobileNumber);
 			String strTraceID = theUSSDRequest.getUSSDTraceID();
 
 			//String strOriginatorID = theUSSDRequest.getUSSDTraceID();
@@ -3283,6 +3285,7 @@ public class USSDAPI {
 
 			int intPriority = 200;
 
+			System.out.println("utilityPaymentWithHakikisha 2");
        /*     String strBillAccountNumberHashMap = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.PAY_BILL_BILLER_ACCOUNT.name());
             HashMap<String, String> hmAccount = Utils.toHashMap(strBillAccountNumberHashMap);
             String strBillerAccount = hmAccount.get("ACCOUNT_IDENTIFIER");
@@ -3294,6 +3297,8 @@ public class USSDAPI {
 				thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
 			}
 
+			System.out.println("utilityPaymentWithHakikisha 3");
+
 			String strBillerName = thePaybillDetails.getStringValue("name");
 			String strBillerCode = thePaybillDetails.getStringValue("shortcode");
 			String strBillerPaymentType = thePaybillDetails.getStringValue("payment_type");
@@ -3301,12 +3306,17 @@ public class USSDAPI {
 			String strBillerAccount = "";
 			String strBillerAccountToName = "";
 
+			System.out.println("utilityPaymentWithHakikisha 4");
+
 			String strUTILITIES_MENU = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.UTILITIES_MENU.name());
 			if (strUTILITIES_MENU.equalsIgnoreCase("PAYBILL_PAYMENT")) {
+				System.out.println("utilityPaymentWithHakikisha 5");
 				String strShortcodeAccount = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_SHORTCODE_ACCOUNT.name());
 				strBillerAccount = strShortcodeAccount;
 				strBillerAccountToName = strShortcodeAccount;
 			} else {
+				System.out.println("utilityPaymentWithHakikisha 6");
+
 				strBillerAccount = strBillerCode;
 				strBillerAccountToName = strBillerName;
 			}
@@ -3329,14 +3339,16 @@ public class USSDAPI {
 				strCommand = "BusinessPayBill";
 			}
 
-			String strAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT.name());
+			System.out.println("utilityPaymentWithHakikisha 7");
 
+			String strAccountDetails = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_FROM_ACCOUNT.name());
+			System.out.println("utilityPaymentWithHakikisha 7.1");
 			HashMap<String, String> hmAccountDetails = Utils.toHashMap(strAccountDetails);
-			String strSourceCustomerIdentifier = hmAccountDetails.get("cust_id");
-			String strSourceAccountNo = hmAccountDetails.get("ac_no");
-			String strSourceAccountName = hmAccountDetails.get("ac_name");
-			String strSourceAccountLabel = hmAccountDetails.get("ac_label");
-			String strSourceAccountAvailableBalance = hmAccountDetails.get("ac_bal");
+			System.out.println("utilityPaymentWithHakikisha 7.2");
+			String strSourceAccountNo = hmAccountDetails.get("number");
+			System.out.println("utilityPaymentWithHakikisha 7.3");
+			String strSourceAccountName = hmAccountDetails.get("name");
+			System.out.println("utilityPaymentWithHakikisha 7.4");
 
 		/*	HashMap<String, String> hmAccountDetails = Utils.toHashMap(strAccountDetails);
 			String strSourceAccountNo = hmAccountDetails.get("number");
@@ -3357,6 +3369,7 @@ public class USSDAPI {
             String strToAccountNaming = hmUtilityAccountDetails.get("type_tag");
             String strBillerName = hmUtilityAccountDetails.get("long_tag");*/
 
+			System.out.println("utilityPaymentWithHakikisha 8");
 			PesaParam pesaParam = PESAAPI.getPesaParam(MBankingConstants.ApplicationType.PESA, PESAAPIConstants.PESA_PARAM_TYPE.MPESA_B2B);
 
 			long getProductID = Long.parseLong(pesaParam.getProductId());
@@ -3388,7 +3401,8 @@ public class USSDAPI {
 			pesa.setInitiatorType("MSISDN");
 			pesa.setInitiatorIdentifier(strMobileNumber);
 			pesa.setInitiatorAccount(strMobileNumber);
-			pesa.setInitiatorName(strMemberName);
+//			pesa.setInitiatorName(strMemberName);
+			pesa.setInitiatorName(strSourceAccountName);
 			pesa.setInitiatorReference(strTraceID);
 			pesa.setInitiatorApplication("USSD");
 			pesa.setInitiatorOtherDetails("<DATA/>");
@@ -3424,7 +3438,7 @@ public class USSDAPI {
 
 			pesa.setBeneficiaryType("MSISDN");
 			pesa.setBeneficiaryIdentifier(strMobileNumber);
-			pesa.setBeneficiaryAccount(strMobileNumber);
+			pesa.setBeneficiaryAccount(strBillerAccount);
 			pesa.setBeneficiaryName(strBillerAccountToName);
 			pesa.setBeneficiaryOtherDetails("<DATA/>");
 
@@ -3444,6 +3458,9 @@ public class USSDAPI {
 			pesa.setPesaDateCreated(strDateTime);
 			pesa.setPESAXMLData("<DATA/>");
 
+			System.out.println("utilityPaymentWithHakikisha 9");
+
+			System.out.println("strSourceAccountNo::"+strSourceAccountNo);
 
 			HashMap<String,String> hmRVal = CBSAPI.mobileMoneyWithdrawal(theUSSDRequest.getUSSDTraceID(), "MSISDN", strMobileNumber, strPIN,"IMSI", strSIMID, strTransactionID,
 					pesa.getSenderType(), pesa.getSenderIdentifier(), pesa.getSenderAccount(), pesa.getSenderName(), pesa.getSenderOtherDetails(),

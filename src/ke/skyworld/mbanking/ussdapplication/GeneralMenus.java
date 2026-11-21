@@ -41,6 +41,8 @@ public interface GeneralMenus {
 
                     String strAccountLabel = hmAccount.get("label");
 
+                    System.out.println("hmAccount:"+hmAccount);
+
                     String strOptionValue  = Utils.serialize(hmAccount);
                     String strOptionMenu = Integer.toString(count);
 
@@ -389,10 +391,10 @@ public interface GeneralMenus {
 
                     String strOptionDisplayText = i + ": " + strUserAccountName + " (" + strUserAccountIdentifier + ")";
 
-                    if(strIntegrityHashViolated.equalsIgnoreCase(USSDConstants.Condition.NO.getValue())){
+//                    if(strIntegrityHashViolated.equalsIgnoreCase(USSDConstants.Condition.NO.getValue())){
                         USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(i), strOptionValueAccount, strOptionDisplayText);
                         count++;
-                    }
+//                    }
                 }
             }catch (Exception e){
                 System.err.println("GeneralMenus.getAccountMaintenanceMenus() ERROR : " + e.getMessage());

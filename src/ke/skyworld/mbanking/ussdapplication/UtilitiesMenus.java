@@ -55,9 +55,12 @@ public interface UtilitiesMenus {
             System.out.println("Utilities Menu 1");
 //            intOptionMenu = intOptionMenu+1;
             USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "MPESA_FLOAT_PURCHASE", "1: M-PESA Float Purchase");
-            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu+1), "PAYBILL_PAYMENT", "2: PayBill Payment");
-            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu+1), "TILL_PAYMENT", "3: Till Payment");
+            intOptionMenu = intOptionMenu+1;
+            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "PAYBILL_PAYMENT", "2: PayBill Payment");
+            intOptionMenu = intOptionMenu+1;
+            USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "TILL_PAYMENT", "3: Till Payment");
             System.out.println("Utilities Menu 2");
+            System.out.println("intOptionMenu: "+intOptionMenu);
 
             //intOptionMenu = intOptionMenu+1;
             //USSDResponseSELECTOption.setUSSDSelectOption(theArrayListUSSDSelectOption, String.valueOf(intOptionMenu), "BUY_AIRTIME", "2: Buy Airtime");
@@ -362,7 +365,6 @@ public interface UtilitiesMenus {
                 case "BILLER_ACCOUNT": {
 
                     String strMenuOption = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.PAY_BILL_BILLER_ACCOUNT.name());
-
 
                     String strAction = "";
                     if(!strMenuOption.isEmpty()){
@@ -1001,7 +1003,7 @@ public interface UtilitiesMenus {
                         String name = shortcodeDetails.getStringValue("name");
                         String paymentType = shortcodeDetails.getStringValue("payment_type");
 
-                        InMemoryCache.store(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT", shortcodeDetails, 300);
+                        ke.co.skyworld.smp.utility_items.memory.InMemoryCache.store(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT", shortcodeDetails, 300);
 
                         System.out.println("here 1"+theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
 
@@ -1155,7 +1157,7 @@ public interface UtilitiesMenus {
                     String strPIN = theUSSDRequest.getUSSDData().get(AppConstants.USSDDataType.OPEN_PAY_BILL_PIN.name());
                     if (strLoginPIN.equals(strPIN)) {
 
-                        Object theSelectedLoansObj = InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
+                        Object theSelectedLoansObj = ke.co.skyworld.smp.utility_items.memory.InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
                         FlexicoreHashMap thePaybillDetails = new FlexicoreHashMap();
                         if (theSelectedLoansObj != null) {
                             thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
@@ -1237,7 +1239,7 @@ public interface UtilitiesMenus {
                         worker.start();*/
 
                         HashMap<String, String> hmResponse = new HashMap<>();
-                        USSDAPIConstants.TransactionReturnVal transactionReturnVal = theUSSDAPI.payBill(theUSSDRequest, PESAConstants.PESAType.PESA_OUT, hmResponse);
+                        USSDAPIConstants.TransactionReturnVal transactionReturnVal = theUSSDAPI.utilityPaymentWithHakikisha(theUSSDRequest, PESAConstants.PESAType.PESA_OUT, hmResponse);
 
                         if(transactionReturnVal.equals(USSDAPIConstants.TransactionReturnVal.SUCCESS)){
                             strResponse = "Dear member, your request to " +strHeader+ " has been received successfully. Please wait shortly as it's being processed.\n";
@@ -1371,15 +1373,12 @@ public interface UtilitiesMenus {
         AppMenus theAppMenus = new AppMenus();
         try {
 
-            System.out.println("here 2"+theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
-
             Object theSelectedLoansObj = ke.co.skyworld.smp.utility_items.memory.InMemoryCache.retrieve(theUSSDRequest.getUSSDMobileNo() + "_UTILITY_PAYMENT");
             FlexicoreHashMap thePaybillDetails = new FlexicoreHashMap();
             if (theSelectedLoansObj != null) {
                 thePaybillDetails = (FlexicoreHashMap) theSelectedLoansObj;
             }
 
-            System.out.println("thePaybillDetails: "+thePaybillDetails);
             String name = thePaybillDetails.getStringValue("name");
             String shortcode = thePaybillDetails.getStringValue("shortcode");
 
